@@ -9309,6 +9309,117 @@ fn test_scalar_sublink_format_roundtrip() {
     assert!(formatted.contains("SELECT a FROM t2"), "formatted should contain subquery: {}", formatted);
 }
 
+// ============================================================
+// ANY with Optimizer Hints — Regression Tests
+// ============================================================
+
+#[test]
+fn test_any_sublink_hint_inside_subquery() {
+    assert_valid("SELECT * FROM t1 WHERE a > ANY(SELECT /*+EXPAND_SUBLINK*/ a FROM t2)");
+    assert_valid("SELECT * FROM t1 WHERE a = ANY(SELECT /*+NO_EXPAND_SUBLINK*/ b FROM t2)");
+}
+
+#[test]
+fn test_any_array_hint_statement_level() {
+    // Statement-level optimizer hints should not interfere with ANY(ARRAY)
+    assert_valid("SELECT /*+ use_cplan */ * FROM t WHERE x = ANY(ARRAY[1,2,3])");
+    assert_valid("SELECT /*+ use_gplan */ * FROM t WHERE x = ANY(ARRAY[1,2,3])");
+    assert_valid("SELECT /*+ set(query_dop 4) */ * FROM t WHERE x = ANY(ARRAY[1,2,3])");
+}
+
+#[test]
+fn test_any_array_hint_expand_sublink() {
+    // expand_sublink hint with ANY(ARRAY) — hint should be preserved in AST
+    assert_valid("SELECT /*+ expand_sublink */ * FROM t WHERE x = ANY(ARRAY[1,2,3])");
+    assert_valid("SELECT /*+ no_expand_sublink */ * FROM t WHERE x = ANY(ARRAY[1,2,3])");
+    assert_valid("SELECT /*+ enable_sublink_enhanced */ * FROM t WHERE x = ANY(ARRAY[1,2,3])");
+    assert_valid("SELECT /*+ no_enable_sublink_enhanced */ * FROM t WHERE x = ANY(ARRAY[1,2,3])");
+}
+
+#[test]
+fn test_any_string_cast_array_hint() {
+    // String literal cast to array with optimizer hints
+    assert_valid("SELECT /*+ expand_sublink */ * FROM t WHERE 1 = ANY('{1,2,3}'::int[])");
+    assert_valid("SELECT /*+ no_expand_sublink */ * FROM t WHERE 'x' = ANY('{a,b,c}'::text[])");
+}
+
+#[test]
+fn test_any_custom_type_array_hint() {
+    // Custom type arrays with hints
+    assert_valid("SELECT /*+ expand_sublink */ 'red' = ANY('{red,green,blue}'::rainbow[])");
+    assert_valid("SELECT /*+ no_expand_sublink */ 5 = ANY('{1,2,3}'::positive_int[])");
+    assert_valid("SELECT /*+ use_cplan */ ROW('a',1) = ANY(ARRAY[ROW('a',1),ROW('b',2)]::person[])");
+}
+
+#[test]
+fn test_any_values_hint() {
+    // ANY(VALUES(...)) GaussDB extension with hints
+    assert_valid("SELECT /*+ expand_sublink */ * FROM t WHERE 0 <> ANY(VALUES(1), (2), (3))");
+    assert_valid("SELECT /*+ no_expand_sublink */ * FROM t WHERE x > ALL(VALUES(10), (20))");
+}
+
+#[test]
+fn test_any_array_hint_multiple() {
+    // Multiple hints with ANY
+    assert_valid("SELECT /*+ use_cplan set(query_dop 4) */ * FROM t WHERE x = ANY(ARRAY[1,2,3])");
+    assert_valid("SELECT /*+ expand_sublink enable_sublink_enhanced */ * FROM t WHERE x = ANY(ARRAY[1,2,3])");
+}
+
+#[test]
+fn test_any_sublink_hint_in_any_subquery() {
+    // Hint inside ANY subquery (not array)
+    assert_valid("SELECT * FROM t1 WHERE a > ANY(SELECT /*+EXPAND_SUBLINK*/ a FROM t2)");
+    assert_valid("SELECT * FROM t1 WHERE a > ANY(SELECT /*+ indexscan(t2) */ a FROM t2)");
+}
+
+#[test]
+fn test_any_array_hint_ast_preservation() {
+    // Verify hints are preserved in the AST when ANY is used
+    let sql = "SELECT /*+ expand_sublink */ * FROM t WHERE x = ANY(ARRAY[1,2,3])";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::Select(s) => {
+            assert!(!s.hints.is_empty(), "statement-level hints should be present");
+            match &s.where_clause {
+                Some(Expr::ScalarSublink { sublink_type, .. }) => {
+                    assert_eq!(*sublink_type, ScalarSublinkType::Any);
+                }
+                other => panic!("expected ScalarSublink, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_any_array_hint_roundtrip_formatting() {
+    let sql = "SELECT /*+ expand_sublink */ * FROM t WHERE x = ANY(ARRAY[1, 2, 3])";
+    let stmts = {
+        let tokens = Tokenizer::new(sql).tokenize().unwrap();
+        Parser::new(tokens).parse()
+    };
+    let formatter = SqlFormatter::new();
+    let formatted = formatter.format_statement(&stmts[0]);
+    assert!(formatted.contains("expand_sublink"), "hint should survive formatting: {}", formatted);
+    assert!(formatted.contains("ANY"), "ANY should survive formatting: {}", formatted);
+}
+
+#[test]
+fn test_any_some_all_hints() {
+    // SOME and ALL with hints
+    assert_valid("SELECT /*+ expand_sublink */ * FROM t WHERE x < SOME(ARRAY[10000, 9000])");
+    assert_valid("SELECT /*+ no_expand_sublink */ * FROM t WHERE x > ALL(ARRAY[1,2,3])");
+    assert_valid("SELECT /*+ use_cplan */ * FROM t WHERE x > ALL(SELECT id FROM t1)");
+}
+
+#[test]
+fn test_any_hint_in_plpgsql() {
+    // PL/pgSQL with hints (hints are parsed in PL contexts too)
+    assert_valid(
+        "DO $$ DECLARE v INT; BEGIN v := 5; IF v = ANY(ARRAY[1,2,3,5]) THEN RAISE NOTICE 'found'; END IF; END $$",
+    );
+}
+
 #[test]
 fn test_column_constraint_enable_disable() {
     let cases = vec![
@@ -14915,4 +15026,399 @@ fn test_create_table_table_fk_with_referential_actions_still_works() {
         }
         other => panic!("expected CreateTable, got {:?}", other),
     }
+}
+
+// ============================================================
+// ANY/SOME/ALL with Custom Array Parameters — Regression Tests
+// ============================================================
+
+// --- Category A: Basic Array Constructor Forms ---
+
+#[test]
+fn test_any_array_constructor_literals() {
+    // ARRAY[...] with various types
+    assert_valid("SELECT * FROM t WHERE x = ANY(ARRAY[1, 2, 3])");
+    assert_valid("SELECT * FROM t WHERE x = ANY(ARRAY['a', 'b', 'c'])");
+    assert_valid("SELECT * FROM t WHERE x = ANY(ARRAY[true, false])");
+    assert_valid("SELECT * FROM t WHERE x = ANY(ARRAY[1.5, 2.5, 3.5])");
+}
+
+#[test]
+fn test_any_array_constructor_with_exprs() {
+    assert_valid("SELECT * FROM t WHERE x + 1 = ANY(ARRAY[2, 3, 4])");
+    assert_valid("SELECT * FROM t WHERE LOWER(name) = ANY(ARRAY['a', 'b'])");
+    assert_valid("SELECT * FROM t WHERE id = ANY(ARRAY[1 + 1, 2 * 3])");
+}
+
+#[test]
+fn test_any_array_subquery() {
+    assert_valid("SELECT * FROM t WHERE x = ANY(ARRAY(SELECT id FROM t1))");
+    assert_valid("SELECT * FROM t WHERE x = ANY(ARRAY(SELECT id FROM t1 WHERE status = 'active'))");
+    assert_valid("SELECT * FROM t WHERE x = ANY(ARRAY(SELECT id FROM t1 UNION SELECT id FROM t2))");
+}
+
+// --- Category B: String Literal Cast to Array ---
+
+#[test]
+fn test_any_string_literal_cast_to_array() {
+    assert_valid("SELECT * FROM t WHERE 1 = ANY('{1,2,3}'::int[])");
+    assert_valid("SELECT * FROM t WHERE 'x' = ANY('{a,b,c}'::text[])");
+    assert_valid("SELECT * FROM t WHERE true = ANY('{t,f}'::bool[])");
+    assert_valid("SELECT * FROM t WHERE 1.5 = ANY('{1.5,2.5}'::numeric[])");
+}
+
+#[test]
+fn test_any_string_literal_cast_empty_array() {
+    assert_valid("SELECT * FROM t WHERE 1 = ANY('{}'::int[])");
+    assert_valid("SELECT * FROM t WHERE 'x' = ANY('{}'::text[])");
+}
+
+#[test]
+fn test_any_string_literal_cast_null_array() {
+    assert_valid("SELECT * FROM t WHERE 1 = ANY(NULL::int[])");
+    assert_valid("SELECT * FROM t WHERE 'x' = ANY(NULL::text[])");
+}
+
+#[test]
+fn test_any_string_literal_cast_multidim_array() {
+    assert_valid("SELECT * FROM t WHERE 1 = ANY('{{1,2},{3,4}}'::int[])");
+    assert_valid("SELECT * FROM t WHERE 'x' = ANY('{{a,b},{c,d}}'::text[])");
+}
+
+// --- Category C: Custom ENUM Type Arrays ---
+
+#[test]
+fn test_any_enum_array_cast() {
+    // rainbow is a custom enum type: CREATE TYPE rainbow AS ENUM ('red','green','blue')
+    assert_valid("SELECT 'red' = ANY('{red,green,blue}'::rainbow[])");
+    assert_valid("SELECT 'yellow' = ANY('{red,green,blue}'::rainbow[])");
+}
+
+#[test]
+fn test_any_enum_array_constructor() {
+    assert_valid("SELECT 'red' = ANY(ARRAY['red','green','blue']::rainbow[])");
+    assert_valid("SELECT val = ANY(ARRAY['new','open','closed']::bug_status[]) FROM issues");
+}
+
+#[test]
+fn test_any_enum_array_schema_qualified() {
+    assert_valid("SELECT 'red' = ANY('{red,green,blue}'::public.rainbow[])");
+    assert_valid("SELECT val = ANY(ARRAY['new','open']::myschema.mystatus[]) FROM t");
+}
+
+// --- Category D: Custom Composite Type Arrays ---
+
+#[test]
+fn test_any_composite_array_cast() {
+    // person is a composite type: CREATE TYPE person AS (name text, age int)
+    assert_valid("SELECT ROW('alice',30) = ANY('{\"(alice,30)\",\"(bob,25)\"}'::person[])");
+}
+
+#[test]
+fn test_any_composite_array_constructor() {
+    assert_valid("SELECT ROW('alice',30) = ANY(ARRAY[ROW('alice',30), ROW('bob',25)]::person[])");
+}
+
+#[test]
+fn test_any_composite_array_field_access() {
+    assert_valid("SELECT * FROM t WHERE (t.name, t.age) = ANY(ARRAY[ROW('alice',30), ROW('bob',25)]::person[])");
+}
+
+// --- Category E: Custom DOMAIN Type Arrays ---
+
+#[test]
+fn test_any_domain_array_cast() {
+    // positive_int is a domain: CREATE DOMAIN positive_int AS int CHECK (VALUE > 0)
+    assert_valid("SELECT 5 = ANY('{1,2,3,5,10}'::positive_int[])");
+}
+
+#[test]
+fn test_any_domain_array_constructor() {
+    assert_valid("SELECT 5 = ANY(ARRAY[1,2,3,5,10]::positive_int[])");
+}
+
+#[test]
+fn test_any_domain_array_schema_qualified() {
+    assert_valid("SELECT 5 = ANY('{1,2,3}'::myschema.positive_int[])");
+}
+
+// --- Category F: Custom RANGE Type Arrays ---
+
+#[test]
+fn test_any_range_array_cast() {
+    // int4range is a built-in range type; custom ranges work identically
+    assert_valid("SELECT '[1,10]' = ANY('{\"[1,10]\",\"[20,30]\",\"[40,50]\"}'::int4range[])");
+    assert_valid("SELECT daterange('2024-01-01','2024-12-31') = ANY('{\"[2024-01-01,2024-12-31)\"}'::daterange[])");
+}
+
+#[test]
+fn test_any_range_array_constructor() {
+    assert_valid("SELECT '[1,10]'::int4range = ANY(ARRAY['[1,10]'::int4range, '[20,30]'::int4range])");
+}
+
+// --- Category G: Custom Base Type Arrays (C extensions) ---
+
+#[test]
+fn test_any_point_array() {
+    // point is a geometric type (C extension)
+    assert_valid("SELECT '(0,0)'::point = ANY('{\"(0,0)\",\"(1,1)\",\"(2,2)\"}'::point[])");
+    assert_valid("SELECT pt = ANY(ARRAY['(0,0)'::point, '(1,1)'::point]) FROM geo");
+}
+
+#[test]
+fn test_any_box_array() {
+    assert_valid("SELECT '((0,0),(1,1))'::box = ANY('{((0,0),(1,1)),((2,2),(3,3))}'::box[])");
+}
+
+#[test]
+fn test_any_path_array() {
+    assert_valid("SELECT '((0,0),(1,1),(2,0))'::path = ANY('{((0,0),(1,1),(2,0))}'::path[])");
+}
+
+// --- Category H: Function Returning Array ---
+
+#[test]
+fn test_any_with_array_agg() {
+    assert_valid("SELECT id FROM t GROUP BY dept HAVING id = ANY(array_agg(id))");
+    assert_valid("SELECT * FROM t WHERE id = ANY(SELECT array_agg(t1.id) FROM t1 WHERE t1.ref = t.ref)");
+}
+
+#[test]
+fn test_any_with_string_to_array() {
+    assert_valid("SELECT * FROM t WHERE tag = ANY(string_to_array('a,b,c', ','))");
+}
+
+#[test]
+fn test_any_with_array_cat() {
+    assert_valid("SELECT * FROM t WHERE x = ANY(array_cat(ARRAY[1,2], ARRAY[3,4]))");
+}
+
+#[test]
+fn test_any_with_unnest() {
+    // unnest returns setof; used in subquery context
+    assert_valid("SELECT * FROM t WHERE x = ANY(SELECT unnest(ARRAY[1,2,3]))");
+}
+
+// --- Category I: Array with NULL Elements ---
+
+#[test]
+fn test_any_array_with_null_elements() {
+    assert_valid("SELECT * FROM t WHERE x = ANY(ARRAY[1, NULL, 3])");
+    assert_valid("SELECT * FROM t WHERE x = ANY('{1,NULL,3}'::int[])");
+    assert_valid("SELECT * FROM t WHERE x IS NULL OR x = ANY(ARRAY[1, 2, 3])");
+}
+
+// --- Category J: Context Variations ---
+
+#[test]
+fn test_any_in_having_clause() {
+    assert_valid("SELECT dept, max(salary) FROM emp GROUP BY dept HAVING max(salary) = ANY(ARRAY[5000, 6000, 7000])");
+}
+
+#[test]
+fn test_any_in_case_when() {
+    assert_valid("SELECT CASE WHEN status = ANY(ARRAY['active','pending']) THEN 'open' ELSE 'closed' END FROM t");
+    // CASE WHEN ... = ANY(...) works; CASE x WHEN ANY(...) is not valid SQL
+    assert_valid(
+        "SELECT CASE WHEN status = ANY(ARRAY['active','pending']) THEN 'open' WHEN status = 'closed' THEN 'done' ELSE 'unknown' END FROM t",
+    );
+}
+
+#[test]
+fn test_any_in_subquery() {
+    assert_valid("SELECT * FROM t WHERE EXISTS (SELECT 1 FROM t2 WHERE t2.id = t.id AND t2.val = ANY(ARRAY[1,2,3]))");
+}
+
+#[test]
+fn test_any_in_join_condition() {
+    assert_valid("SELECT * FROM t1 JOIN t2 ON t1.id = t2.id AND t1.status = ANY(ARRAY['active','pending'])");
+}
+
+#[test]
+fn test_any_multiple_in_one_statement() {
+    assert_valid("SELECT * FROM t WHERE x = ANY(ARRAY[1,2,3]) AND y = ANY(ARRAY[4,5,6]) AND z = ANY(ARRAY[7,8,9])");
+}
+
+#[test]
+fn test_any_mixed_sublink_and_array() {
+    assert_valid("SELECT * FROM t WHERE x = ANY(SELECT id FROM t1) AND y = ANY(ARRAY[1,2,3])");
+}
+
+// --- Category K: NOT + ANY ---
+
+#[test]
+fn test_not_any_array() {
+    assert_valid("SELECT * FROM t WHERE NOT (x = ANY(ARRAY[1, 2, 3]))");
+    assert_valid("SELECT * FROM t WHERE x <> ANY(ARRAY[1, 2, 3])");
+}
+
+// --- Category L: SOME / ALL with Arrays ---
+
+#[test]
+fn test_some_with_array() {
+    assert_valid("SELECT * FROM t WHERE x < SOME(ARRAY[10000, 9000])");
+    assert_valid("SELECT * FROM t WHERE x < SOME('{10000,9000}'::int[])");
+    assert_valid("SELECT * FROM t WHERE x < SOME(ARRAY(SELECT id FROM t1))");
+}
+
+#[test]
+fn test_all_with_array() {
+    assert_valid("SELECT * FROM t WHERE x > ALL(ARRAY[1, 2, 3])");
+    assert_valid("SELECT * FROM t WHERE x > ALL('{1,2,3}'::int[])");
+    assert_valid("SELECT * FROM t WHERE x >= ALL(ARRAY(SELECT id FROM t1))");
+}
+
+// --- Category M: ScalarSublink AST Structure Verification ---
+
+#[test]
+fn test_any_array_ast_structure() {
+    let sql = "SELECT * FROM t WHERE x = ANY(ARRAY[1, 2, 3])";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::Select(s) => match &s.where_clause {
+            Some(Expr::ScalarSublink { sublink_type, op, subquery, .. }) => {
+                assert_eq!(*sublink_type, ScalarSublinkType::Any);
+                assert_eq!(op, "=");
+                assert_eq!(subquery.targets.len(), 1);
+                match &subquery.targets[0] {
+                    SelectTarget::Expr(e, _) => {
+                        assert!(matches!(e, Expr::Array(_)), "expected Array expr, got {:?}", e);
+                    }
+                    _ => panic!("expected SelectTarget::Expr"),
+                }
+            }
+            other => panic!("expected ScalarSublink, got {:?}", other),
+        },
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_any_string_literal_cast_ast_structure() {
+    let sql = "SELECT * FROM t WHERE x = ANY('{1,2,3}'::int[])";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::Select(s) => match &s.where_clause {
+            Some(Expr::ScalarSublink { sublink_type, op, .. }) => {
+                assert_eq!(*sublink_type, ScalarSublinkType::Any);
+                assert_eq!(op, "=");
+            }
+            other => panic!("expected ScalarSublink, got {:?}", other),
+        },
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_any_custom_type_ast_structure() {
+    let sql = "SELECT 'red' = ANY('{red,green}'::rainbow[])";
+    let stmts = parse_valid(sql);
+    match &stmts[0] {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1, "expected 1 select target");
+            match &s.targets[0] {
+                SelectTarget::Expr(Expr::ScalarSublink { sublink_type, .. }, _) => {
+                    assert_eq!(*sublink_type, ScalarSublinkType::Any);
+                }
+                other => panic!("expected ScalarSublink in select target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_any_composite_type_ast_structure() {
+    let sql = "SELECT ROW('alice',30) = ANY(ARRAY[ROW('alice',30), ROW('bob',25)]::person[])";
+    let stmts = parse_valid(sql);
+    match &stmts[0] {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1, "expected 1 select target");
+            match &s.targets[0] {
+                SelectTarget::Expr(Expr::ScalarSublink { sublink_type, .. }, _) => {
+                    assert_eq!(*sublink_type, ScalarSublinkType::Any);
+                }
+                other => panic!("expected ScalarSublink in select target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+// --- Category N: PL/pgSQL with ANY + Arrays ---
+
+#[test]
+fn test_any_in_plpgsql_if_condition() {
+    assert_valid(
+        "DO $$ DECLARE v_id INT; BEGIN v_id := 5; IF v_id = ANY(ARRAY[1,2,3,5]) THEN RAISE NOTICE 'found'; END IF; END $$",
+    );
+}
+
+#[test]
+fn test_any_in_plpgsql_while_condition() {
+    assert_valid(
+        "DO $$ DECLARE v_val INT := 0; BEGIN WHILE v_val = ANY(ARRAY[0,1,2]) LOOP v_val := v_val + 1; END LOOP; END $$",
+    );
+}
+
+#[test]
+fn test_any_in_plpgsql_assignment() {
+    assert_valid(
+        "DO $$ DECLARE arr INT[]; v_result BOOLEAN; BEGIN arr := ARRAY[1,2,3]; v_result := 5 = ANY(arr); END $$",
+    );
+}
+
+#[test]
+fn test_any_in_plpgsql_with_custom_type_var() {
+    // Variable of custom type used in ANY comparison
+    assert_valid(
+        "DO $$ DECLARE v_status TEXT; arr TEXT[]; BEGIN arr := ARRAY['active','pending']; v_status := 'active'; IF v_status = ANY(arr) THEN RAISE NOTICE 'match'; END IF; END $$",
+    );
+}
+
+#[test]
+fn test_any_in_plpgsql_with_expr() {
+    assert_valid(
+        "DO $$ DECLARE v_id INT; BEGIN v_id := 10; IF v_id + 1 = ANY(ARRAY[5, 10, 11]) THEN RAISE NOTICE 'match'; END IF; END $$",
+    );
+}
+
+// --- Category O: ANY with Array Column Reference ---
+
+#[test]
+fn test_any_with_array_column() {
+    assert_valid("SELECT * FROM t WHERE 1 = ANY(t.int_array_col)");
+    assert_valid("SELECT * FROM t WHERE 'x' = ANY(t.text_array_col)");
+}
+
+#[test]
+fn test_any_with_array_column_and_other_conditions() {
+    assert_valid("SELECT * FROM t WHERE 1 = ANY(t.int_array_col) AND t.status = 'active'");
+}
+
+// --- Category P: Round-trip Formatting Preservation ---
+
+#[test]
+fn test_any_array_roundtrip_formatting() {
+    let sql = "SELECT * FROM t WHERE x = ANY(ARRAY[1, 2, 3])";
+    let stmts = {
+        let tokens = Tokenizer::new(sql).tokenize().unwrap();
+        Parser::new(tokens).parse()
+    };
+    let formatter = SqlFormatter::new();
+    let formatted = formatter.format_statement(&stmts[0]);
+    assert!(formatted.contains("ANY"), "formatted should contain ANY: {}", formatted);
+    assert!(formatted.contains("ARRAY"), "formatted should contain ARRAY");
+}
+
+#[test]
+fn test_any_array_roundtrip_json() {
+    let sql = "SELECT * FROM t WHERE x = ANY(ARRAY[1, 2, 3])";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    let formatter = SqlFormatter::new();
+    let formatted = formatter.format_statement(&restored[0]);
+    assert!(formatted.contains("ANY"), "JSON round-trip lost ANY");
 }
