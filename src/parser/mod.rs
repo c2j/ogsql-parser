@@ -1174,14 +1174,14 @@ impl Parser {
 
     // ── Statement dispatch ──
 
-    pub(crate) fn consume_hints(&mut self) -> Vec<String> {
+    pub(crate) fn consume_hints(&mut self) -> Vec<crate::ast::HintInfo> {
         let mut hints = Vec::new();
         let loc = self.current_location();
         while let Token::Hint(h) = self.peek().clone() {
             for w in hint_validator::validate_hints(&h, loc) {
                 self.add_error(w);
             }
-            hints.push(h);
+            hints.extend(hint_validator::parse_hint_list(&h));
             self.advance();
         }
         hints

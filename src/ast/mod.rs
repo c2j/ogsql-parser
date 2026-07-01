@@ -986,9 +986,21 @@ pub struct SelectIntoTable {
     pub table_name: ObjectName,
 }
 
+/// Parsed optimizer hint from `/*+ ... */` comment.
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct HintInfo {
+    pub name: String,
+    #[serde(default)]
+    pub negated: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queryblock: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub args: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct SelectStatement {
-    pub hints: Vec<String>,
+    pub hints: Vec<HintInfo>,
     pub with: Option<WithClause>,
     pub distinct: bool,
     pub distinct_on: Vec<Expr>,
@@ -1502,7 +1514,7 @@ pub enum DmlPartitionClause {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InsertStatement {
-    pub hints: Vec<String>,
+    pub hints: Vec<HintInfo>,
     pub with: Option<WithClause>,
     pub table: ObjectName,
     pub alias: Option<Ident>,
@@ -1588,7 +1600,7 @@ pub struct InsertFirstStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct UpdateStatement {
-    pub hints: Vec<String>,
+    pub hints: Vec<HintInfo>,
     pub with: Option<WithClause>,
     pub tables: Vec<TableRef>,
     pub partition: Option<DmlPartitionClause>,
@@ -1619,7 +1631,7 @@ pub struct UpdateAssignment {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DeleteStatement {
-    pub hints: Vec<String>,
+    pub hints: Vec<HintInfo>,
     pub with: Option<WithClause>,
     pub tables: Vec<TableRef>,
     pub using: Vec<TableRef>,
@@ -1640,7 +1652,7 @@ pub struct DeleteStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MergeStatement {
-    pub hints: Vec<String>,
+    pub hints: Vec<HintInfo>,
     pub target: TableRef,
     pub partition: Option<DmlPartitionClause>,
     pub source: TableRef,

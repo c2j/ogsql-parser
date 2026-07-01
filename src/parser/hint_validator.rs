@@ -1,3 +1,4 @@
+use crate::ast::HintInfo;
 use crate::parser::ParserError;
 use crate::token::SourceLocation;
 
@@ -150,15 +151,7 @@ const NO_PAREN_HINTS: &[&str] = &[
     "no_rownum_pushdown",
 ];
 
-#[derive(Debug, Clone)]
-struct ParsedHint {
-    name: String,
-    negated: bool,
-    queryblock: Option<String>,
-    args: Option<String>,
-}
-
-fn parse_hint_list(content: &str) -> Vec<ParsedHint> {
+pub fn parse_hint_list(content: &str) -> Vec<HintInfo> {
     let mut hints = Vec::new();
     let chars = content.chars().collect::<Vec<_>>();
     let len = chars.len();
@@ -231,7 +224,7 @@ fn parse_hint_list(content: &str) -> Vec<ParsedHint> {
 
         let (actual_name, negated) = resolve_name_and_negation(&name);
 
-        hints.push(ParsedHint { name: actual_name, negated, queryblock, args });
+        hints.push(HintInfo { name: actual_name, negated, queryblock, args });
     }
 
     hints
@@ -274,7 +267,7 @@ pub fn validate_hints(hint_content: &str, location: SourceLocation) -> Vec<Parse
     warnings
 }
 
-fn validate_single_hint(hint: &ParsedHint, location: SourceLocation) -> Vec<ParserError> {
+fn validate_single_hint(hint: &HintInfo, location: SourceLocation) -> Vec<ParserError> {
     let mut warnings = Vec::new();
 
     if !KNOWN_HINTS.contains(&hint.name.as_str()) {

@@ -1,5 +1,5 @@
 use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlStatement, RaiseLevel};
-use crate::ast::{Expr, InsertSource, LockClause, Statement, StatementInfo};
+use crate::ast::{Expr, HintInfo, InsertSource, LockClause, Statement, StatementInfo};
 use crate::linter::{
     loc_from_spanned, make_warning, stmt_location, walk_expr, Confidence, LintConfig, LintRuleEntry, SqlLinter,
     SqlWarning, StatementKind, WarningLevel,
@@ -120,7 +120,7 @@ pub fn register(linter: &mut SqlLinter) {
 }
 
 /// Extract hints from a statement (SELECT, INSERT, UPDATE, DELETE).
-fn extract_hints(stmt: &Statement) -> Vec<&String> {
+fn extract_hints(stmt: &Statement) -> Vec<&HintInfo> {
     match stmt {
         Statement::Select(s) => s.hints.iter().collect(),
         Statement::Insert(s) => s.hints.iter().collect(),
@@ -143,39 +143,19 @@ fn check_c001(
 ) {
     let loc = stmt_location(curr_stmt);
     for hint in extract_hints(&curr_stmt.statement) {
-        let parsed = parse_hint_names(hint);
-        for name in parsed {
-            let lower = name.to_lowercase();
-            let base = lower.strip_prefix("no_").or_else(|| lower.strip_prefix("no"));
-            let known = KNOWN_HINTS.contains(&lower.as_str()) || base.is_some_and(|b| KNOWN_HINTS.contains(&b));
-            if !known {
-                warnings.push(make_warning(
-                    WarningLevel::Caution,
-                    "C001",
-                    "hint-unknown",
-                    format!("Hint '{name}' \u{4e0d}\u{5728} GaussDB \u{5df2}\u{77e5} Hint \u{5217}\u{8868}\u{4e2d}\u{ff0c}\u{5c06}\u{88ab}\u{9759}\u{9ed8}\u{5ffd}\u{7565}"),
-                    Some("\u{68c0}\u{67e5} Hint \u{62fc}\u{5199}\u{662f}\u{5426}\u{6b63}\u{786e}"),
-                    loc,
-                    Some("Hint \u{4f7f}\u{7528}\u{89c4}\u{8303}"),
-                    confidence,
-                ));
-            }
+        if !KNOWN_HINTS.contains(&hint.name.as_str()) {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C001",
+                "hint-unknown",
+                format!("Hint '{}' \u{4e0d}\u{5728} GaussDB \u{5df2}\u{77e5} Hint \u{5217}\u{8868}\u{4e2d}\u{ff0c}\u{5c06}\u{88ab}\u{9759}\u{9ed8}\u{5ffd}\u{7565}", hint.name),
+                Some("\u{68c0}\u{67e5} Hint \u{62fc}\u{5199}\u{662f}\u{5426}\u{6b63}\u{786e}"),
+                loc,
+                Some("Hint \u{4f7f}\u{7528}\u{89c4}\u{8303}"),
+                confidence,
+            ));
         }
     }
-}
-
-/// Parse a hint string (the content inside /*+ ... */) into individual hint names.
-fn parse_hint_names(hint: &str) -> Vec<&str> {
-    // Split by whitespace and parentheses, take the first token of each segment
-    let mut names = Vec::new();
-    for segment in hint.split_whitespace() {
-        // Remove parenthesized arguments: "hashjoin(t1)" → "hashjoin"
-        let name = segment.split('(').next().unwrap_or(segment);
-        if !name.is_empty() {
-            names.push(name);
-        }
-    }
-    names
 }
 
 // ── C005: Contradictory hints ──
@@ -204,72 +184,51 @@ fn check_c005(
     ];
 
     let loc = stmt_location(curr_stmt);
-    for hint in extract_hints(&curr_stmt.statement) {
-        let resolved = resolve_hints(hint);
-        let mut seen = std::collections::HashSet::new();
-        for (name, _) in &resolved {
-            let lower = name.to_lowercase();
-            if seen.contains(&lower) {
-                continue;
-            }
-            let has_pos = resolved.iter().any(|(n, neg)| n == &lower && !neg);
-            let has_neg = resolved.iter().any(|(n, neg)| n == &lower && *neg);
-            if has_pos && has_neg {
-                warnings.push(make_warning(
-                    WarningLevel::Caution,
-                    "C005",
-                    "hint-contradictory",
-                    format!("Hint \u{77db}\u{76fe}: '{lower}' \u{4e0e} 'no_{lower}' \u{540c}\u{65f6}\u{5b58}\u{5728}"),
-                    Some("\u{79fb}\u{9664}\u{77db}\u{76fe}\u{7684} Hint"),
-                    loc,
-                    None,
-                    confidence,
-                ));
-                seen.insert(lower);
-            }
-        }
+    let hints = extract_hints(&curr_stmt.statement);
+    if hints.is_empty() {
+        return;
+    }
 
-        // Check mutually exclusive pairs
-        for (a, b) in contradictory_pairs {
-            let has_a = resolved.iter().any(|(n, _)| n == a);
-            let has_b = resolved.iter().any(|(n, _)| n == b);
-            if has_a && has_b {
-                warnings.push(make_warning(
-                        WarningLevel::Caution,
-                        "C005",
-                        "hint-contradictory",
-                        format!("Hint \u{4e92}\u{65a5}: '{a}' \u{4e0e} '{b}' \u{4e0d}\u{5e94}\u{540c}\u{65f6}\u{5b58}\u{5728}"),
-                        Some("\u{53ea}\u{4fdd}\u{7559}\u{4e00}\u{4e2a}\u{626b}\u{63cf}\u{65b9}\u{5f0f}/\u{8fde}\u{63a5}\u{65b9}\u{5f0f}\u{7684} Hint"),
-                        loc,
-                        None,
-                        confidence,
-                    ));
-            }
+    let mut seen = std::collections::HashSet::new();
+    for hint in &hints {
+        let lower = hint.name.to_lowercase();
+        if seen.contains(&lower) {
+            continue;
+        }
+        let has_pos = hints.iter().any(|h| h.name == lower && !h.negated);
+        let has_neg = hints.iter().any(|h| h.name == lower && h.negated);
+        if has_pos && has_neg {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C005",
+                "hint-contradictory",
+                format!("Hint \u{77db}\u{76fe}: '{lower}' \u{4e0e} 'no_{lower}' \u{540c}\u{65f6}\u{5b58}\u{5728}"),
+                Some("\u{79fb}\u{9664}\u{77db}\u{76fe}\u{7684} Hint"),
+                loc,
+                None,
+                confidence,
+            ));
+            seen.insert(lower);
         }
     }
-}
 
-/// Parse a hint string into (name, is_negated) pairs.
-fn resolve_hints(hint: &str) -> Vec<(String, bool)> {
-    let names = parse_hint_names(hint);
-    names
-        .into_iter()
-        .map(|name| {
-            let lower = name.to_lowercase();
-            if let Some(base) = lower.strip_prefix("no_") {
-                if KNOWN_HINTS.contains(&base) {
-                    return (base.to_string(), true);
-                }
-            }
-            if lower.starts_with("no") && lower.len() > 2 {
-                let base = &lower[2..];
-                if KNOWN_HINTS.contains(&base) {
-                    return (base.to_string(), true);
-                }
-            }
-            (lower, false)
-        })
-        .collect()
+    // Check mutually exclusive pairs
+    for (a, b) in contradictory_pairs {
+        let has_a = hints.iter().any(|h| h.name == *a);
+        let has_b = hints.iter().any(|h| h.name == *b);
+        if has_a && has_b {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C005",
+                "hint-contradictory",
+                format!("Hint \u{4e92}\u{65a5}: '{a}' \u{4e0e} '{b}' \u{4e0d}\u{5e94}\u{540c}\u{65f6}\u{5b58}\u{5728}"),
+                Some("\u{53ea}\u{4fdd}\u{7559}\u{4e00}\u{4e2a}\u{626b}\u{63cf}\u{65b9}\u{5f0f}/\u{8fde}\u{63a5}\u{65b9}\u{5f0f}\u{7684} Hint"),
+                loc,
+                None,
+                confidence,
+            ));
+        }
+    }
 }
 
 // ── C006: Hint table not in FROM ──
@@ -363,30 +322,24 @@ fn collect_table_names_from(from: &[crate::ast::TableRef], tables: &mut Vec<Stri
     }
 }
 
-/// Extract table name references from hints that take table arguments.
-fn extract_hint_table_refs(hint: &str) -> Vec<&str> {
+/// Extract table name references from a hint's arguments.
+fn extract_hint_table_refs(hint: &HintInfo) -> Vec<String> {
     let mut tables = Vec::new();
-    for segment in hint.split_whitespace() {
-        // "hashjoin(t1)" → extract "t1"
-        if let Some(start) = segment.find('(') {
-            if let Some(end) = segment.rfind(')') {
-                let args = &segment[start + 1..end];
-                for arg in args.split(',') {
-                    let trimmed = arg.trim();
-                    // Skip @queryblock prefixes like @sel$1
-                    let name = if trimmed.starts_with('@') {
-                        if let Some(space_pos) = trimmed.find(char::is_whitespace) {
-                            trimmed[space_pos..].trim()
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        trimmed
-                    };
-                    if !name.is_empty() {
-                        tables.push(name);
-                    }
+    if let Some(ref args) = hint.args {
+        for arg in args.split(',') {
+            let trimmed = arg.trim();
+            // Skip @queryblock prefixes like @sel$1
+            let name = if trimmed.starts_with('@') {
+                if let Some(space_pos) = trimmed.find(char::is_whitespace) {
+                    trimmed[space_pos..].trim()
+                } else {
+                    continue;
                 }
+            } else {
+                trimmed
+            };
+            if !name.is_empty() {
+                tables.push(name.to_string());
             }
         }
     }
