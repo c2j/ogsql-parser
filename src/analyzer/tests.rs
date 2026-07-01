@@ -1366,3 +1366,139 @@ fn test_strict_mode_allows_param_as_subscript() {
     let func_errors: Vec<_> = strict.iter().filter(|e| e.kind == super::UndefinedRefKind::Function).collect();
     assert!(func_errors.is_empty(), "parameter used as subscript should not be flagged: {:?}", func_errors);
 }
+
+// ══ Regression tests: Issue #265 — NEW/OLD trigger variables flagged undefined ══
+
+fn parse_func_validate(sql: &str) -> (crate::ast::plpgsql::PlBlock, Vec<crate::ast::RoutineParam>) {
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    match &stmts[0] {
+        crate::ast::Statement::CreateFunction(func) => {
+            let block = func.block.as_ref().expect("block should parse").clone();
+            (block, func.parameters.clone())
+        }
+        _ => panic!("expected CreateFunction, got {:?}", stmts[0]),
+    }
+}
+
+#[test]
+fn test_trigger_new_variable_not_undefined() {
+    // 正例: RETURNS trigger 函数中 NEW 不应被标记为未定义
+    let (block, params) = parse_func_validate(
+        "CREATE FUNCTION public.last_updated() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN NEW.last_update = CURRENT_TIMESTAMP; RETURN NEW; END; $$",
+    );
+    let warnings = super::validate_pl_variables(&block, &params);
+    let vars: Vec<_> = warnings.iter().filter(|e| e.kind == super::UndefinedRefKind::Variable).collect();
+    assert!(vars.is_empty(), "NEW should not be flagged as undefined in trigger function, got: {:?}", warnings);
+}
+
+#[test]
+fn test_trigger_old_variable_not_undefined() {
+    // 正例: RETURNS trigger 函数中 OLD 不应被标记为未定义
+    let (block, params) = parse_func_validate(
+        "CREATE FUNCTION public.check_old() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN IF OLD.status = 'deleted' THEN RETURN NULL; END IF; RETURN NEW; END; $$",
+    );
+    let warnings = super::validate_pl_variables(&block, &params);
+    assert!(!has_undefined(&warnings, "OLD"), "OLD should not be flagged as undefined in trigger function");
+    assert!(!has_undefined(&warnings, "NEW"), "NEW should not be flagged as undefined in trigger function");
+}
+
+#[test]
+fn test_trigger_new_in_do_block_not_undefined() {
+    // 正例: DO block 中单部分 NEW 引用不应标记为未定义
+    let block = parse_do_validate("DO $$ DECLARE r RECORD; BEGIN r := NEW; END $$");
+    let warnings = super::validate_pl_variables(&block, &[]);
+    assert!(
+        !has_undefined(&warnings, "NEW"),
+        "NEW should not be flagged as undefined even in non-trigger PL blocks, got: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_trigger_old_in_do_block_not_undefined() {
+    // 正例: DO block 中单部分 OLD 引用不应标记为未定义
+    let block = parse_do_validate("DO $$ DECLARE r RECORD; BEGIN r := OLD; END $$");
+    let warnings = super::validate_pl_variables(&block, &[]);
+    assert!(
+        !has_undefined(&warnings, "OLD"),
+        "OLD should not be flagged as undefined even in non-trigger PL blocks, got: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_trigger_tg_op_not_undefined() {
+    // 正例: TG_OP 不应被标记为未定义
+    let block = parse_do_validate("DO $$ BEGIN IF TG_OP = 'INSERT' THEN NULL; END IF; END $$");
+    let warnings = super::validate_pl_variables(&block, &[]);
+    assert!(!has_undefined(&warnings, "TG_OP"), "TG_OP should not be flagged as undefined");
+}
+
+#[test]
+fn test_trigger_tg_name_not_undefined() {
+    // 正例: TG_NAME 不应被标记为未定义
+    let block = parse_do_validate("DO $$ BEGIN RAISE NOTICE 'trigger: %', TG_NAME; END $$");
+    let warnings = super::validate_pl_variables(&block, &[]);
+    assert!(!has_undefined(&warnings, "TG_NAME"), "TG_NAME should not be flagged as undefined");
+}
+
+#[test]
+fn test_trigger_tg_when_not_undefined() {
+    // 正例: TG_WHEN, TG_LEVEL, TG_RELID, TG_TABLE_NAME, TG_TABLE_SCHEMA, TG_ARGV, TG_NARGS
+    let block = parse_do_validate("DO $$ BEGIN IF TG_WHEN = 'BEFORE' AND TG_LEVEL = 'ROW' THEN NULL; END IF; END $$");
+    let warnings = super::validate_pl_variables(&block, &[]);
+    assert!(!has_undefined(&warnings, "TG_WHEN"));
+    assert!(!has_undefined(&warnings, "TG_LEVEL"));
+}
+
+#[test]
+fn test_trigger_tg_all_builtins_not_undefined() {
+    // 正例: 所有 TG_ 变量综合测试
+    let block = parse_do_validate(
+        "DO $$ BEGIN
+        IF TG_OP = 'UPDATE' THEN
+            IF TG_WHEN = 'BEFORE' THEN
+                RAISE NOTICE 'trigger % on %', TG_NAME, TG_TABLE_NAME;
+            END IF;
+        END IF;
+        IF TG_NARGS > 0 THEN NULL; END IF;
+    END $$",
+    );
+    let warnings = super::validate_pl_variables(&block, &[]);
+    let vars: Vec<_> = warnings.iter().filter(|e| e.kind == super::UndefinedRefKind::Variable).collect();
+    assert!(
+        vars.is_empty(),
+        "TG_NAME, TG_OP, TG_WHEN, TG_TABLE_NAME, TG_NARGS should not be flagged, got: {:?}",
+        warnings.iter().map(|e| &e.variable_name).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn test_pl_variable_new_field_access_not_undefined() {
+    // 正例: NEW.column_name 的 field access — NEW should 被识别
+    let block = parse_do_validate("DO $$ BEGIN NEW.last_update := CURRENT_TIMESTAMP; RETURN NEW; END $$");
+    let warnings = super::validate_pl_variables(&block, &[]);
+    assert!(!has_undefined(&warnings, "NEW"), "NEW should not be flagged in field access, got: {:?}", warnings);
+}
+
+// ══ Regression: Issue #265 反例 — 确保真正的未定义变量仍被正确标记 ══
+
+#[test]
+fn test_truly_undefined_variable_still_detected() {
+    // 反例: 真正的未定义变量仍应被标记
+    let block = parse_do_validate("DO $$ BEGIN v_unknown := 1; END $$");
+    let warnings = super::validate_pl_variables(&block, &[]);
+    assert!(has_undefined(&warnings, "v_unknown"), "truly undefined variable should still be flagged");
+}
+
+#[test]
+fn test_found_not_found_still_work_as_builtins() {
+    // 反例: FOUND 和 NOT_FOUND 原本就在 PL_BUILTIN_VALUES 中，不应受影响
+    let block = parse_do_validate("DO $$ BEGIN IF FOUND THEN NULL; END IF; IF NOT_FOUND THEN NULL; END IF; END $$");
+    let warnings = super::validate_pl_variables(&block, &[]);
+    assert!(!has_undefined(&warnings, "FOUND"));
+    assert!(!has_undefined(&warnings, "NOT_FOUND"));
+}
