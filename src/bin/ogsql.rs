@@ -2828,21 +2828,49 @@ fn flatten_statement(
             }
         }
         Statement::CreatePackage(s) => {
-            if extract_sql {
-                return rows; // no body to extract
+            if !extract_sql {
+                rows.push(ParseCsvRow {
+                    line: si.start_line,
+                    end_line: si.start_line,
+                    stmt_type: "CreatePackage".into(),
+                    name: s.name.join("."),
+                    parent: String::new(),
+                    parameters: String::new(),
+                    return_type: String::new(),
+                    sql: String::new(),
+                    branch_path: String::new(),
+                    branch_condition: String::new(),
+                });
             }
-            rows.push(ParseCsvRow {
-                line: si.start_line,
-                end_line: si.start_line,
-                stmt_type: "CreatePackage".into(),
-                name: s.name.join("."),
-                parent: String::new(),
-                parameters: String::new(),
-                return_type: String::new(),
-                sql: String::new(),
-                branch_path: String::new(),
-                branch_condition: String::new(),
-            });
+            if extract_sql {
+                let spec_vars = collect_package_item_vars(&s.items);
+                for item in &s.items {
+                    if let ogsql_parser::ast::PackageItem::Cursor(c) = item {
+                        let sql = if let Some(ref parsed) = c.parsed_query {
+                            let formatter = ogsql_parser::SqlFormatter::new();
+                            replace_pl_vars_in_sql(&formatter.format_statement(parsed), &spec_vars)
+                        } else if !c.query.trim().is_empty() {
+                            replace_pl_vars_in_sql(c.query.trim(), &spec_vars)
+                        } else {
+                            continue;
+                        };
+                        if !sql.trim().is_empty() {
+                            rows.push(ParseCsvRow {
+                                line: si.start_line,
+                                end_line: si.start_line,
+                                stmt_type: "SpecCursor".into(),
+                                name: c.name.clone(),
+                                parent: s.name.join("."),
+                                parameters: String::new(),
+                                return_type: String::new(),
+                                sql,
+                                branch_path: String::new(),
+                                branch_condition: String::new(),
+                            });
+                        }
+                    }
+                }
+            }
             for item in &s.items {
                 match item {
                     ogsql_parser::ast::PackageItem::Procedure(p) => {
