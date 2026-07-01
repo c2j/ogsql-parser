@@ -43,7 +43,7 @@ pub fn register(linter: &mut SqlLinter) {
             id: "R005",
             name: "implicit-type-conversion",
             level: WarningLevel::Prohibition,
-            stmt_kind: StatementKind::Select,
+            stmt_kind: StatementKind::Dml,
             check_fn: check_r005,
         },
         LintRuleEntry {

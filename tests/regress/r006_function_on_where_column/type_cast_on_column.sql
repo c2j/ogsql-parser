@@ -1,0 +1,3 @@
+-- description: type cast on column in WHERE should trigger R006
+-- warn: R006
+SELECT * FROM t WHERE name::text = 'abc';

@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
+use ogsql_parser::analyzer::schema::SchemaMap;
 use ogsql_parser::linter::{Confidence, LintConfig, SqlLinter};
 use ogsql_parser::Parser;
 
@@ -30,6 +31,13 @@ struct Fixture {
     warn: Vec<String>,
     nowarn: Vec<String>,
     split: Option<String>,
+    schema_entries: Vec<SchemaEntry>,
+}
+
+struct SchemaEntry {
+    table: String,
+    column: String,
+    data_type: String,
 }
 
 fn fixtures_dir() -> PathBuf {
@@ -72,6 +80,7 @@ fn collect_fixtures(dir: &PathBuf, prefix: &str, results: &mut Vec<Fixture>) {
         let warn_lines = meta.get("warn").cloned().unwrap_or_default();
         let nowarn_lines = meta.get("nowarn").cloned().unwrap_or_default();
         let split = meta.get("split").cloned();
+        let schema_entries = parse_schema_entries(meta.get("schema"));
 
         results.push(Fixture {
             name,
@@ -80,6 +89,7 @@ fn collect_fixtures(dir: &PathBuf, prefix: &str, results: &mut Vec<Fixture>) {
             warn: split_ids(&warn_lines),
             nowarn: split_ids(&nowarn_lines),
             split,
+            schema_entries,
         });
     }
 }
@@ -115,15 +125,42 @@ fn split_ids(s: &str) -> Vec<String> {
     s.split(',').map(|id| id.trim().to_uppercase()).filter(|id| !id.is_empty()).collect()
 }
 
+fn parse_schema_entries(raw: Option<&String>) -> Vec<SchemaEntry> {
+    let Some(raw) = raw else { return vec![] };
+    raw.split(',')
+        .filter_map(|entry| {
+            let entry = entry.trim();
+            if entry.is_empty() {
+                return None;
+            }
+            let (table_col, data_type) = entry.split_once('=')?;
+            let (table, column) = table_col.trim().split_once('.')?;
+            Some(SchemaEntry {
+                table: table.trim().to_string(),
+                column: column.trim().to_string(),
+                data_type: data_type.trim().to_string(),
+            })
+        })
+        .collect()
+}
+
+fn build_schema(entries: &[SchemaEntry]) -> SchemaMap {
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    for e in entries {
+        schema.entry(e.table.clone()).or_default().insert(e.column.clone(), e.data_type.clone());
+    }
+    schema
+}
+
 // ── assertion ─────────────────────────────────────────────
 
-fn lint_sql(sql: &str) -> Vec<String> {
+fn lint_sql(sql: &str, schema: Option<&SchemaMap>) -> Vec<String> {
     let (infos, errors) = Parser::parse_sql(sql);
     assert!(errors.is_empty(), "解析失败: {errors:?}");
     assert!(!infos.is_empty(), "未生成任何 statement");
 
     let linter = SqlLinter::with_default_rules(LintConfig::default());
-    let warnings = linter.lint(&infos, None, Confidence::Full);
+    let warnings = linter.lint(&infos, schema, Confidence::Full);
 
     warnings.iter().map(|w| w.rule_id.clone()).collect()
 }
@@ -137,6 +174,7 @@ fn all_regress_fixtures() {
 
     for f in &fixtures {
         let label = format!("{} ({})", f.name, f.description);
+        let schema = if f.schema_entries.is_empty() { None } else { Some(build_schema(&f.schema_entries)) };
 
         let rule_ids = if let Some(ref sep) = f.split {
             let delimiter = match sep.as_str() {
@@ -149,12 +187,12 @@ fn all_regress_fixtures() {
             let mut all_ids = Vec::new();
             for (_i, block) in blocks.iter().enumerate() {
                 let sql = if delimiter == "\n\n" { block.to_string() } else { format!("{};", block.trim()) };
-                let ids = lint_sql(&sql);
+                let ids = lint_sql(&sql, schema.as_ref());
                 all_ids.extend(ids);
             }
             all_ids
         } else {
-            lint_sql(&f.sql)
+            lint_sql(&f.sql, schema.as_ref())
         };
 
         for id in &f.warn {
