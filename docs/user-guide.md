@@ -859,10 +859,10 @@ foreach_estimated_rows = 1000   # iBatis <foreach> 预估迭代次数（用于 C
 ### 11.4 规则清单
 
 > **等级说明**：`Prohibition`(禁止项) > `Performance`(性能) > `Caution`(注意) > `Suggestion`(建议)。
-> 共 53 条规则（7 Prohibition + 23 Performance + 17 Caution + 6 Suggestion = 53）。
+> 共 54 条规则（8 Prohibition + 23 Performance + 17 Caution + 6 Suggestion = 54）。
 > 编号不连续（如 C002–C004、S003–S004 不存在）是规划中预留的规则位。
 
-#### 禁止项 (Prohibition) — 违反 GaussDB 编码规范，可能引发数据安全风险（7 条）
+#### 禁止项 (Prohibition) — 违反 GaussDB 编码规范，可能引发数据安全风险（8 条）
 
 | ID | 名称 | 适用语句 | 说明 |
 |----|------|----------|------|
@@ -873,6 +873,7 @@ foreach_estimated_rows = 1000   # iBatis <foreach> 预估迭代次数（用于 C
 | R005 | `implicit-type-conversion` | DML | WHERE 中可能存在隐式类型转换，导致索引失效。需要 schema 信息辅助判断，无 schema 时跳过 |
 | R006 | `function-on-where-column` | DML | WHERE 中对列使用函数或表达式运算，将导致索引失效。建议将运算移到等号另一侧或使用函数索引 |
 | R007 | `like-leading-wildcard` | DML | `LIKE '%...'` 前导通配符导致无法使用索引，触发全表扫描。建议避免以通配符开头的 LIKE 模式 |
+| R010 | `function-side-effect` | All | 自定义 Function 中包含非 SELECT DML（INSERT/UPDATE/DELETE/MERGE/TRUNCATE 等）、事务控制语句（COMMIT/ROLLBACK/SAVEPOINT/SET TRANSACTION），或调用了含事务语句的其他函数/过程。函数应避免修改数据和提交/回滚事务，考虑将副作用操作移至过程中 |
 
 #### 性能 (Performance) — 可识别的性能陷阱，有明确的优化路径（23 条）
 

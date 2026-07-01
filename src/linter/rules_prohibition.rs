@@ -1,3 +1,4 @@
+use crate::ast::plpgsql::{PlBlock, PlStatement};
 use crate::ast::{Expr, InsertSource, SelectStatement, SelectTarget, Statement, StatementInfo};
 use crate::linter::type_helpers::{
     build_column_type_map, classify_type_family, literal_type_family, resolve_column_type,
@@ -72,6 +73,13 @@ pub fn register(linter: &mut SqlLinter) {
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Select,
             check_fn: check_r009,
+        },
+        LintRuleEntry {
+            id: "R010",
+            name: "function-side-effect",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::All,
+            check_fn: check_r010,
         },
     ];
     for rule in rules {
@@ -639,6 +647,255 @@ fn check_r009(
             }
         }
     }
+}
+
+// R010: Function side effect — non-SELECT DML, transaction control, or calls
+// to procedures with transactions.
+fn check_r010(
+    curr_stmt: &StatementInfo,
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    let Statement::CreateFunction(func) = &curr_stmt.statement else { return };
+    let Some(block) = &func.block else { return };
+
+    let loc = stmt_location(curr_stmt);
+    let func_name = func.name.join(".");
+
+    let tx_procedures = build_tx_procedure_set(stmts);
+
+    let mut has_dml = false;
+    let mut has_tx = false;
+    let mut called_tx_procs: Vec<String> = Vec::new();
+
+    scan_block_for_side_effects(block, &tx_procedures, &mut has_dml, &mut has_tx, &mut called_tx_procs);
+
+    if !has_dml && !has_tx && called_tx_procs.is_empty() {
+        return;
+    }
+
+    let mut details: Vec<String> = Vec::new();
+    if has_dml {
+        details.push(
+            "\u{975e} SELECT DML \u{64cd}\u{4f5c}\u{ff08}INSERT/UPDATE/DELETE/MERGE \u{7b49}\u{ff09}".to_string(),
+        );
+    }
+    if has_tx {
+        details.push("\u{4e8b}\u{52a1}\u{63a7}\u{5236}\u{8bed}\u{53e5}\u{ff08}COMMIT/ROLLBACK\u{ff09}".to_string());
+    }
+    for name in &called_tx_procs {
+        details.push(format!("\u{8c03}\u{7528}\u{542b}\u{4e8b}\u{52a1}\u{7684}\u{8fc7}\u{7a0b} \"{}\"", name));
+    }
+    let message = format!("\u{51fd}\u{6570} \"{}\" \u{5305}\u{542b}\u{4e0d}\u{5efa}\u{8bae}\u{5728}\u{51fd}\u{6570}\u{4e2d}\u{4f7f}\u{7528}\u{7684}\u{64cd}\u{4f5c}\u{ff1a}{}", func_name, details.join("\u{ff0c}"));
+
+    warnings.push(make_warning(
+        WarningLevel::Prohibition,
+        "R010",
+        "function-side-effect",
+        message,
+        Some("\u{51fd}\u{6570}\u{5e94}\u{907f}\u{514d}\u{4fee}\u{6539}\u{6570}\u{636e}\u{6216}\u{63d0}\u{4ea4}\u{56de}\u{6eda}\u{4e8b}\u{52a1}\u{ff0c}\u{8003}\u{8651}\u{5c06} DML / COMMIT / ROLLBACK \u{79fb}\u{81f3}\u{8fc7}\u{7a0b}\u{4e2d}"),
+        loc,
+        Some("\u{5f00}\u{53d1}\u{8bbe}\u{8ba1}\u{5efa}\u{8bae} > \u{51fd}\u{6570}\u{89c4}\u{8303}"),
+        confidence,
+    ));
+}
+
+/// Build a set of procedure/function names that contain COMMIT or ROLLBACK.
+fn build_tx_procedure_set(stmts: &[StatementInfo]) -> std::collections::HashSet<String> {
+    let mut set = std::collections::HashSet::new();
+    for info in stmts {
+        let (name, block) = match &info.statement {
+            Statement::CreateProcedure(p) => (p.name.join("."), p.block.as_ref()),
+            Statement::CreateFunction(f) => (f.name.join("."), f.block.as_ref()),
+            _ => continue,
+        };
+        if let Some(block) = block {
+            if pl_block_has_tx_control(block) {
+                set.insert(name.to_lowercase());
+            }
+        }
+    }
+    set
+}
+
+/// Check if a PL block contains COMMIT or ROLLBACK (recursively).
+fn pl_block_has_tx_control(block: &PlBlock) -> bool {
+    pl_stmts_have_tx(&block.body)
+}
+
+fn pl_stmts_have_tx(stmts: &[PlStatement]) -> bool {
+    for stmt in stmts {
+        if pl_stmt_has_tx(stmt) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Returns true for leaf PL statements that constitute transaction control.
+fn is_pl_tx_stmt(stmt: &PlStatement) -> bool {
+    matches!(
+        stmt,
+        PlStatement::Commit { .. }
+            | PlStatement::Rollback { .. }
+            | PlStatement::Savepoint { .. }
+            | PlStatement::ReleaseSavepoint { .. }
+            | PlStatement::SetTransaction { .. }
+    )
+}
+
+fn pl_stmt_has_tx(stmt: &PlStatement) -> bool {
+    if is_pl_tx_stmt(stmt) {
+        return true;
+    }
+    match stmt {
+        PlStatement::Block(block) => pl_block_has_tx_control(block),
+        PlStatement::If(if_stmt) => {
+            pl_stmts_have_tx(&if_stmt.then_stmts)
+                || if_stmt.elsifs.iter().any(|e| pl_stmts_have_tx(&e.stmts))
+                || pl_stmts_have_tx(&if_stmt.else_stmts)
+        }
+        PlStatement::Case(case_stmt) => {
+            case_stmt.whens.iter().any(|w| pl_stmts_have_tx(&w.stmts)) || pl_stmts_have_tx(&case_stmt.else_stmts)
+        }
+        PlStatement::Loop(loop_stmt) => pl_stmts_have_tx(&loop_stmt.body),
+        PlStatement::While(while_stmt) => pl_stmts_have_tx(&while_stmt.body),
+        PlStatement::For(for_stmt) => pl_stmts_have_tx(&for_stmt.body),
+        PlStatement::ForEach(foreach_stmt) => pl_stmts_have_tx(&foreach_stmt.body),
+        _ => false,
+    }
+}
+
+/// Recursively scan a PL block for side effects.
+fn scan_block_for_side_effects(
+    block: &PlBlock,
+    tx_procedures: &std::collections::HashSet<String>,
+    has_dml: &mut bool,
+    has_tx: &mut bool,
+    called_tx_procs: &mut Vec<String>,
+) {
+    scan_stmts_for_side_effects(&block.body, tx_procedures, has_dml, has_tx, called_tx_procs);
+    if let Some(ref exc) = block.exception_block {
+        for handler in &exc.handlers {
+            scan_stmts_for_side_effects(&handler.statements, tx_procedures, has_dml, has_tx, called_tx_procs);
+        }
+    }
+}
+
+fn scan_stmts_for_side_effects(
+    stmts: &[PlStatement],
+    tx_procedures: &std::collections::HashSet<String>,
+    has_dml: &mut bool,
+    has_tx: &mut bool,
+    called_tx_procs: &mut Vec<String>,
+) {
+    for stmt in stmts {
+        match stmt {
+            PlStatement::Block(inner) => {
+                scan_block_for_side_effects(inner, tx_procedures, has_dml, has_tx, called_tx_procs);
+            }
+            PlStatement::SqlStatement { statement, .. } => {
+                if is_non_select_dml(statement) {
+                    *has_dml = true;
+                }
+            }
+            PlStatement::Sql(sql_text) => {
+                if sql_text_starts_with_dml(sql_text) {
+                    *has_dml = true;
+                }
+                if sql_text_has_tx(sql_text) {
+                    *has_tx = true;
+                }
+            }
+            PlStatement::Execute(exec) => {
+                if let Some(ref parsed) = exec.parsed_query {
+                    if is_non_select_dml(parsed) {
+                        *has_dml = true;
+                    }
+                }
+            }
+            PlStatement::ProcedureCall(call) => {
+                let callee = call.name.join(".").to_lowercase();
+                if tx_procedures.contains(&callee) && !called_tx_procs.contains(&call.name.join(".")) {
+                    called_tx_procs.push(call.name.join("."));
+                }
+            }
+            PlStatement::If(if_stmt) => {
+                scan_stmts_for_side_effects(&if_stmt.then_stmts, tx_procedures, has_dml, has_tx, called_tx_procs);
+                for elsif in &if_stmt.elsifs {
+                    scan_stmts_for_side_effects(&elsif.stmts, tx_procedures, has_dml, has_tx, called_tx_procs);
+                }
+                scan_stmts_for_side_effects(&if_stmt.else_stmts, tx_procedures, has_dml, has_tx, called_tx_procs);
+            }
+            PlStatement::Case(case_stmt) => {
+                for when in &case_stmt.whens {
+                    scan_stmts_for_side_effects(&when.stmts, tx_procedures, has_dml, has_tx, called_tx_procs);
+                }
+                scan_stmts_for_side_effects(&case_stmt.else_stmts, tx_procedures, has_dml, has_tx, called_tx_procs);
+            }
+            PlStatement::Loop(loop_stmt) => {
+                scan_stmts_for_side_effects(&loop_stmt.body, tx_procedures, has_dml, has_tx, called_tx_procs);
+            }
+            PlStatement::While(while_stmt) => {
+                scan_stmts_for_side_effects(&while_stmt.body, tx_procedures, has_dml, has_tx, called_tx_procs);
+            }
+            PlStatement::For(for_stmt) => {
+                scan_stmts_for_side_effects(&for_stmt.body, tx_procedures, has_dml, has_tx, called_tx_procs);
+            }
+            PlStatement::ForEach(foreach_stmt) => {
+                scan_stmts_for_side_effects(&foreach_stmt.body, tx_procedures, has_dml, has_tx, called_tx_procs);
+            }
+            _ => {
+                if is_pl_tx_stmt(stmt) {
+                    *has_tx = true;
+                }
+            }
+        }
+    }
+}
+
+/// Check if a SQL statement is non-SELECT DML.
+fn is_non_select_dml(stmt: &Statement) -> bool {
+    matches!(
+        stmt,
+        Statement::Insert(_)
+            | Statement::InsertAll(_)
+            | Statement::InsertFirst(_)
+            | Statement::Replace(_)
+            | Statement::Update(_)
+            | Statement::Delete(_)
+            | Statement::Merge(_)
+            | Statement::Truncate(_)
+            | Statement::Copy(_)
+    )
+}
+
+/// Quick check if a raw SQL text (from PlStatement::Sql) starts with a DML keyword.
+fn sql_text_starts_with_dml(text: &str) -> bool {
+    let lower = text.trim_start().to_lowercase();
+    lower.starts_with("insert")
+        || lower.starts_with("update")
+        || lower.starts_with("delete")
+        || lower.starts_with("merge")
+        || lower.starts_with("truncate")
+        || lower.starts_with("copy")
+        || lower.starts_with("replace")
+}
+
+/// Quick check if a raw SQL text (from PlStatement::Sql) starts with a transaction keyword.
+fn sql_text_has_tx(text: &str) -> bool {
+    let lower = text.trim_start().to_lowercase();
+    lower.starts_with("start transaction")
+        || lower.starts_with("begin transaction")
+        || lower.starts_with("begin work")
+        || lower.starts_with("savepoint")
+        || lower.starts_with("release savepoint")
+        || lower.starts_with("rollback to savepoint")
+        || lower.starts_with("set transaction")
 }
 
 fn extract_where_clause(stmt: &Statement) -> Option<&Expr> {

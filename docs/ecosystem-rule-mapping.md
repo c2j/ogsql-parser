@@ -21,6 +21,7 @@ ogsql-parser (base — lint rules R*/P*/C*/S*)
 | R005 | implicit-type-conversion | Prohibition (schema-aware) | — | TYPE-001: confirms implicit conversion at runtime |
 | R007 | like-leading-wildcard | Prohibition | — | TYPE-004: confirms full scan from leading wildcard |
 | R009 | scalar-subquery-in-select | Performance | Manual-level: suggests JOIN rewrite | — |
+| R010 | function-side-effect | Prohibition | — | — |
 | P001 | union-without-all | Performance | Auto-rewrite: UNION → UNION ALL | — |
 | P002 | not-in-subquery | Performance | subquery-to-join: rewrites NOT IN to LEFT JOIN ... IS NULL | — |
 | P009 | function-instead-of-case | Performance | nvl-to-case: rewrites NVL/NVL2/DECODE to CASE | — |
