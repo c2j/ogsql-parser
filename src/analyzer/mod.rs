@@ -1442,6 +1442,20 @@ const PL_BUILTIN_VALUES: &[&str] = &[
     "BOTH",
     "LEADING",
     "TRAILING",
+    // PL/pgSQL trigger context built-in variables (NEW, OLD, TG_*).
+    // Valid in trigger functions (RETURNS trigger) and treated as
+    // implicitly declared built-in values for PL variable validation.
+    "NEW",
+    "OLD",
+    "TG_ARGV",
+    "TG_LEVEL",
+    "TG_NAME",
+    "TG_NARGS",
+    "TG_OP",
+    "TG_RELID",
+    "TG_TABLE_NAME",
+    "TG_TABLE_SCHEMA",
+    "TG_WHEN",
 ];
 
 fn is_pl_builtin(name: &str) -> bool {

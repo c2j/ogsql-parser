@@ -1366,6 +1366,30 @@ impl Parser {
     }
 
     fn try_parse_column_constraint(&mut self) -> Result<Option<ColumnConstraint>, ParserError> {
+        // Handle inline CONSTRAINT [name] prefix for column-level constraints.
+        // ColumnConstraint AST type does not store constraint names, so we
+        // consume the name but discard it — same as how parse_table_constraint
+        // optionally consumes CONSTRAINT name before the constraint body.
+        if self.match_keyword(Keyword::CONSTRAINT) {
+            self.advance();
+            // If the next token is a constraint keyword (NOT, NULL, DEFAULT,
+            // UNIQUE, PRIMARY, CHECK, REFERENCES), then no name was given —
+            // CONSTRAINT is just an optional keyword prefix.
+            let has_name = !matches!(
+                self.peek_keyword(),
+                Some(Keyword::NOT)
+                    | Some(Keyword::NULL_P)
+                    | Some(Keyword::DEFAULT)
+                    | Some(Keyword::UNIQUE)
+                    | Some(Keyword::PRIMARY)
+                    | Some(Keyword::CHECK)
+                    | Some(Keyword::REFERENCES)
+            );
+            if has_name {
+                let _name = self.parse_identifier()?;
+            }
+        }
+
         let result = match self.peek_keyword() {
             Some(Keyword::NOT) => {
                 self.advance();
@@ -1422,8 +1446,7 @@ impl Parser {
                 } else {
                     Vec::new()
                 };
-                let on_delete = self.parse_referential_action(Keyword::DELETE_P)?;
-                let on_update = self.parse_referential_action(Keyword::UPDATE)?;
+                let (on_delete, on_update) = self.parse_referential_actions()?;
                 Some(ColumnConstraint::References { ref_table, ref_columns, on_delete, on_update })
             }
             _ => None,
@@ -1588,8 +1611,7 @@ impl Parser {
                 self.expect_keyword(Keyword::REFERENCES)?;
                 let ref_table = self.parse_object_name()?;
                 let ref_columns = self.parse_column_list()?;
-                let on_delete = self.parse_referential_action(Keyword::DELETE_P)?;
-                let on_update = self.parse_referential_action(Keyword::UPDATE)?;
+                let (on_delete, on_update) = self.parse_referential_actions()?;
                 Ok(TableConstraint::ForeignKey { columns, ref_table, ref_columns, on_delete, on_update })
             }
             _ => Err(ParserError::UnexpectedToken {
@@ -1617,45 +1639,60 @@ impl Parser {
         Ok(columns)
     }
 
-    fn parse_referential_action(&mut self, keyword: Keyword) -> Result<Option<ReferentialAction>, ParserError> {
-        if self.match_keyword(Keyword::ON) {
-            let pos = self.pos;
+    /// Parse ON DELETE / ON UPDATE referential action clauses in any order.
+    /// PostgreSQL grammar permits ON DELETE and ON UPDATE to appear in either
+    /// order: `REFERENCES ... ON UPDATE CASCADE ON DELETE RESTRICT` and
+    /// `REFERENCES ... ON DELETE RESTRICT ON UPDATE CASCADE` are both valid.
+    fn parse_referential_actions(
+        &mut self,
+    ) -> Result<(Option<ReferentialAction>, Option<ReferentialAction>), ParserError> {
+        let mut on_delete = None;
+        let mut on_update = None;
+        while self.match_keyword(Keyword::ON) {
             self.advance();
-            if self.match_keyword(keyword) {
+            if self.match_keyword(Keyword::DELETE_P) {
                 self.advance();
-                let action = if self.match_keyword(Keyword::CASCADE) {
-                    self.advance();
-                    ReferentialAction::Cascade
-                } else if self.match_keyword(Keyword::RESTRICT) {
-                    self.advance();
-                    ReferentialAction::Restrict
-                } else if self.match_keyword(Keyword::SET) {
-                    self.advance();
-                    if self.match_keyword(Keyword::NULL_P) {
-                        self.advance();
-                        ReferentialAction::SetNull
-                    } else {
-                        self.expect_keyword(Keyword::DEFAULT)?;
-                        ReferentialAction::SetDefault
-                    }
-                } else if self.match_keyword(Keyword::NO) {
-                    self.advance();
-                    self.expect_keyword(Keyword::ACTION)?;
-                    ReferentialAction::NoAction
-                } else {
-                    return Err(ParserError::UnexpectedToken {
-                        location: self.current_location(),
-                        expected: "CASCADE, RESTRICT, SET NULL, SET DEFAULT, or NO ACTION".to_string(),
-                        got: format!("{:?}", self.peek()),
-                    });
-                };
-                Ok(Some(action))
+                on_delete = Some(self.parse_referential_action_body()?);
+            } else if self.match_keyword(Keyword::UPDATE) {
+                self.advance();
+                on_update = Some(self.parse_referential_action_body()?);
             } else {
-                self.pos = pos;
-                Ok(None)
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "DELETE or UPDATE".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
             }
+        }
+        Ok((on_delete, on_update))
+    }
+
+    fn parse_referential_action_body(&mut self) -> Result<ReferentialAction, ParserError> {
+        if self.match_keyword(Keyword::CASCADE) {
+            self.advance();
+            Ok(ReferentialAction::Cascade)
+        } else if self.match_keyword(Keyword::RESTRICT) {
+            self.advance();
+            Ok(ReferentialAction::Restrict)
+        } else if self.match_keyword(Keyword::SET) {
+            self.advance();
+            if self.match_keyword(Keyword::NULL_P) {
+                self.advance();
+                Ok(ReferentialAction::SetNull)
+            } else {
+                self.expect_keyword(Keyword::DEFAULT)?;
+                Ok(ReferentialAction::SetDefault)
+            }
+        } else if self.match_keyword(Keyword::NO) {
+            self.advance();
+            self.expect_keyword(Keyword::ACTION)?;
+            Ok(ReferentialAction::NoAction)
         } else {
-            Ok(None)
+            Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "CASCADE, RESTRICT, SET NULL, SET DEFAULT, or NO ACTION".to_string(),
+                got: format!("{:?}", self.peek()),
+            })
         }
     }
 

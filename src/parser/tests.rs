@@ -14523,3 +14523,396 @@ fn test_call_statement_empty_args_does_not_panic() {
         other => panic!("expected Statement::Call, got {:?}", other),
     }
 }
+
+// ══ Regression tests: Issue #263 — Inline CONSTRAINT name in column definition ══
+
+#[test]
+fn test_column_def_inline_constraint_name_check() {
+    // 正例: CONSTRAINT name CHECK (...) in column definition
+    let sql = "CREATE TABLE public.film (film_id INTEGER NOT NULL, release_year INTEGER CONSTRAINT film_release_year_check CHECK (release_year IS NULL OR (release_year >= 1901 AND release_year <= 2155)))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let CreateTableStatement { columns, .. } = &s.node;
+            assert_eq!(columns.len(), 2, "should have 2 columns");
+            // release_year column should have a CHECK constraint (name discarded)
+            let col = &columns[1];
+            assert_eq!(col.name, "release_year");
+            assert!(
+                col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Check(_))),
+                "release_year should have CHECK constraint, got: {:?}",
+                col.constraints
+            );
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_column_def_inline_constraint_name_unique() {
+    // 正例: CONSTRAINT name UNIQUE in column definition
+    let sql = "CREATE TABLE t (a INT CONSTRAINT uq_a UNIQUE)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Unique)));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_column_def_inline_constraint_name_primary_key() {
+    // 正例: CONSTRAINT name PRIMARY KEY in column definition
+    let sql = "CREATE TABLE t (a INT CONSTRAINT pk_a PRIMARY KEY)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::PrimaryKey)));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_column_def_inline_constraint_name_references() {
+    // 正例: CONSTRAINT name REFERENCES table(col) in column definition
+    let sql = "CREATE TABLE t (a INT CONSTRAINT fk_a REFERENCES other(id))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::References { .. })));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_column_def_inline_constraint_name_default() {
+    // 正例: CONSTRAINT name DEFAULT in column definition
+    let sql = "CREATE TABLE t (a INT CONSTRAINT df_a DEFAULT 0)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Default(_))));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_column_def_inline_constraint_name_not_null() {
+    // 正例: CONSTRAINT name NOT NULL in column definition
+    let sql = "CREATE TABLE t (a INT CONSTRAINT nn_a NOT NULL)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::NotNull)));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_column_def_inline_constraint_name_null() {
+    // 正例: CONSTRAINT name NULL in column definition
+    let sql = "CREATE TABLE t (a INT CONSTRAINT n_a NULL)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Null)));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_column_def_multiple_inline_constraint_names() {
+    // 正例: 多个 inline CONSTRAINT name 在同一个列定义中
+    let sql =
+        "CREATE TABLE t (a INT CONSTRAINT nn_a NOT NULL CONSTRAINT df_a DEFAULT 0 CONSTRAINT chk_a CHECK (a > 0))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert_eq!(col.constraints.len(), 3);
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::NotNull)));
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Default(_))));
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Check(_))));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_column_def_inline_constraint_mixed_with_unnamed() {
+    // 正例: inline named constraint 与 unnamed constraint 混用
+    let sql = "CREATE TABLE t (a INT NOT NULL CONSTRAINT chk_a CHECK (a > 0))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert_eq!(col.constraints.len(), 2);
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::NotNull)));
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Check(_))));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+// ══ Regression: Issue #263 反例 — 确保现有 unnamed column constraint 不受影响 ══
+
+#[test]
+fn test_column_def_unnamed_constraints_still_work() {
+    // 反例: 不带 CONSTRAINT keyword 的列约束不应该受影响
+    let sql = "CREATE TABLE t (a INT NOT NULL DEFAULT 0 UNIQUE CHECK (a > 0) PRIMARY KEY REFERENCES other(id))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::NotNull)));
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Default(_))));
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Unique)));
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::Check(_))));
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::PrimaryKey)));
+            assert!(col.constraints.iter().any(|c| matches!(c, ColumnConstraint::References { .. })));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_table_level_constraint_name_still_works() {
+    // 反例: 表级 CONSTRAINT name 不应受影响
+    let sql = "CREATE TABLE t (a INT, CONSTRAINT pk_a PRIMARY KEY (a))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert_eq!(s.node.constraints.len(), 1);
+            assert!(matches!(s.node.constraints[0], TableConstraint::PrimaryKey { .. }));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+// ══ Regression tests: Issue #264 — ON DELETE/UPDATE in ALTER TABLE ADD CONSTRAINT FK ══
+
+#[test]
+fn test_alter_table_add_constraint_fk_on_delete_restrict() {
+    // 正例: ON DELETE RESTRICT (单个动作，先 DELETE)
+    let sql = "ALTER TABLE public.address ADD CONSTRAINT fk_city FOREIGN KEY (city_id) REFERENCES public.city(city_id) ON DELETE RESTRICT";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().unwrap();
+            match action {
+                AlterTableAction::AddConstraint { name, constraint } => {
+                    assert_eq!(name.as_deref(), Some("fk_city"));
+                    match constraint {
+                        TableConstraint::ForeignKey { columns, ref_table, ref_columns, on_delete, on_update } => {
+                            assert_eq!(*columns, vec!["city_id"]);
+                            assert_eq!(ref_table.join("."), "public.city");
+                            assert_eq!(*ref_columns, vec!["city_id"]);
+                            assert!(matches!(on_delete, Some(ReferentialAction::Restrict)));
+                            assert!(on_update.is_none());
+                        }
+                        other => panic!("expected ForeignKey, got {:?}", other),
+                    }
+                }
+                other => panic!("expected AddConstraint, got {:?}", other),
+            }
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_table_add_constraint_fk_on_update_cascade() {
+    // 正例: ON UPDATE CASCADE (单个动作，先 UPDATE)
+    let sql = "ALTER TABLE t ADD CONSTRAINT fk_f FOREIGN KEY (a) REFERENCES r(a) ON UPDATE CASCADE";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().unwrap();
+            match action {
+                AlterTableAction::AddConstraint { constraint, .. } => match constraint {
+                    TableConstraint::ForeignKey { on_delete, on_update, .. } => {
+                        assert!(on_delete.is_none());
+                        assert!(matches!(on_update, Some(ReferentialAction::Cascade)));
+                    }
+                    other => panic!("expected ForeignKey, got {:?}", other),
+                },
+                other => panic!("expected AddConstraint, got {:?}", other),
+            }
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_table_add_constraint_fk_on_update_then_on_delete() {
+    // 正例: ON UPDATE ... ON DELETE ... (UPDATE 先出现 — issue 中报告的精确顺序)
+    let sql = "ALTER TABLE ONLY public.address ADD CONSTRAINT address_city_id_fkey FOREIGN KEY (city_id) REFERENCES public.city(city_id) ON UPDATE CASCADE ON DELETE RESTRICT";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().unwrap();
+            match action {
+                AlterTableAction::AddConstraint { name, constraint } => {
+                    assert_eq!(name.as_deref(), Some("address_city_id_fkey"));
+                    match constraint {
+                        TableConstraint::ForeignKey { columns, ref_table, ref_columns, on_delete, on_update } => {
+                            assert_eq!(*columns, vec!["city_id"]);
+                            assert_eq!(ref_table.join("."), "public.city");
+                            assert_eq!(*ref_columns, vec!["city_id"]);
+                            assert!(
+                                matches!(on_update, Some(ReferentialAction::Cascade)),
+                                "expected ON UPDATE CASCADE, got: {:?}",
+                                on_update
+                            );
+                            assert!(
+                                matches!(on_delete, Some(ReferentialAction::Restrict)),
+                                "expected ON DELETE RESTRICT, got: {:?}",
+                                on_delete
+                            );
+                        }
+                        other => panic!("expected ForeignKey, got {:?}", other),
+                    }
+                }
+                other => panic!("expected AddConstraint, got {:?}", other),
+            }
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_table_add_constraint_fk_on_delete_then_on_update() {
+    // 正例: ON DELETE ... ON UPDATE ... (DELETE 先出现 — 反向顺序)
+    let sql = "ALTER TABLE t ADD CONSTRAINT fk_a FOREIGN KEY (a) REFERENCES r(a) ON DELETE CASCADE ON UPDATE RESTRICT";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().unwrap();
+            match action {
+                AlterTableAction::AddConstraint { constraint, .. } => match constraint {
+                    TableConstraint::ForeignKey { on_delete, on_update, .. } => {
+                        assert!(matches!(on_delete, Some(ReferentialAction::Cascade)));
+                        assert!(matches!(on_update, Some(ReferentialAction::Restrict)));
+                    }
+                    other => panic!("expected ForeignKey, got {:?}", other),
+                },
+                other => panic!("expected AddConstraint, got {:?}", other),
+            }
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_table_add_constraint_fk_all_referential_actions() {
+    // 正例: 覆盖所有 referential action 类型 (ON DELETE SET NULL, ON UPDATE SET DEFAULT, NO ACTION)
+    let sql =
+        "ALTER TABLE t ADD CONSTRAINT fk_full FOREIGN KEY (a) REFERENCES r(a) ON DELETE SET NULL ON UPDATE NO ACTION";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterTable(a) => match a.actions.first().unwrap() {
+            AlterTableAction::AddConstraint { constraint, .. } => match constraint {
+                TableConstraint::ForeignKey { on_delete, on_update, .. } => {
+                    assert!(matches!(on_delete, Some(ReferentialAction::SetNull)));
+                    assert!(matches!(on_update, Some(ReferentialAction::NoAction)));
+                }
+                other => panic!("expected ForeignKey, got {:?}", other),
+            },
+            other => panic!("expected AddConstraint, got {:?}", other),
+        },
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_table_add_constraint_fk_on_delete_set_default() {
+    // 正例: ON DELETE SET DEFAULT
+    let sql = "ALTER TABLE t ADD CONSTRAINT fk_d FOREIGN KEY (a) REFERENCES r(a) ON DELETE SET DEFAULT";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterTable(a) => match a.actions.first().unwrap() {
+            AlterTableAction::AddConstraint { constraint, .. } => match constraint {
+                TableConstraint::ForeignKey { on_delete, on_update, .. } => {
+                    assert!(matches!(on_delete, Some(ReferentialAction::SetDefault)));
+                    assert!(on_update.is_none());
+                }
+                other => panic!("expected ForeignKey, got {:?}", other),
+            },
+            other => panic!("expected AddConstraint, got {:?}", other),
+        },
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+// ══ Regression: Issue #264 反例 — 确保无 ON DELETE/UPDATE 的 FK 不受影响 ══
+
+#[test]
+fn test_alter_table_add_constraint_fk_no_referential_actions() {
+    // 反例: 不带 ON DELETE/UPDATE 的 FK 仍应正常解析
+    let sql = "ALTER TABLE t ADD CONSTRAINT fk_a FOREIGN KEY (a) REFERENCES r(a)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterTable(a) => match a.actions.first().unwrap() {
+            AlterTableAction::AddConstraint { constraint, .. } => match constraint {
+                TableConstraint::ForeignKey { on_delete, on_update, .. } => {
+                    assert!(on_delete.is_none());
+                    assert!(on_update.is_none());
+                }
+                other => panic!("expected ForeignKey, got {:?}", other),
+            },
+            other => panic!("expected AddConstraint, got {:?}", other),
+        },
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_fk_with_referential_actions_still_works() {
+    // 反例: CREATE TABLE 中的 FK + ON DELETE/UPDATE 不应受影响
+    let sql = "CREATE TABLE t (a INT REFERENCES r(a) ON DELETE CASCADE ON UPDATE RESTRICT)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            let col = &s.node.columns[0];
+            assert!(col.constraints.iter().any(|c| matches!(
+                c,
+                ColumnConstraint::References {
+                    on_delete: Some(ReferentialAction::Cascade),
+                    on_update: Some(ReferentialAction::Restrict),
+                    ..
+                }
+            )));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_table_fk_with_referential_actions_still_works() {
+    // 反例: CREATE TABLE 表级 FK + ON DELETE/UPDATE 不应受影响
+    let sql = "CREATE TABLE t (a INT, FOREIGN KEY (a) REFERENCES r(a) ON DELETE CASCADE ON UPDATE RESTRICT)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert!(s.node.constraints.iter().any(|c| match c {
+                TableConstraint::ForeignKey { on_delete, on_update, .. } =>
+                    matches!(on_delete, Some(ReferentialAction::Cascade))
+                        && matches!(on_update, Some(ReferentialAction::Restrict)),
+                _ => false,
+            }));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
