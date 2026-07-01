@@ -6706,7 +6706,11 @@ fn test_select_hint_parsed() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     match &stmts[0] {
-        Statement::Select(s) => assert_eq!(s.hints, vec!["tablescan(t1)"]),
+        Statement::Select(s) => {
+            assert_eq!(s.hints.len(), 1);
+            assert_eq!(s.hints[0].name, "tablescan");
+            assert_eq!(s.hints[0].args.as_deref(), Some("t1"));
+        }
         _ => panic!("expected SELECT"),
     }
 }
@@ -6719,9 +6723,11 @@ fn test_select_multi_hint() {
     let stmts = parser.parse();
     match &stmts[0] {
         Statement::Select(s) => {
-            assert_eq!(s.hints.len(), 1);
-            assert!(s.hints[0].contains("tablescan(t1)"));
-            assert!(s.hints[0].contains("leading(t1 t2)"));
+            assert_eq!(s.hints.len(), 2);
+            assert_eq!(s.hints[0].name, "tablescan");
+            assert_eq!(s.hints[0].args.as_deref(), Some("t1"));
+            assert_eq!(s.hints[1].name, "leading");
+            assert_eq!(s.hints[1].args.as_deref(), Some("t1 t2"));
         }
         _ => panic!("expected SELECT"),
     }
@@ -6736,7 +6742,7 @@ fn test_hint_after_select_keyword() {
     match &stmts[0] {
         Statement::Select(s) => {
             assert_eq!(s.hints.len(), 1);
-            assert!(s.hints[0].contains("hashjoin"));
+            assert_eq!(s.hints[0].name, "hashjoin");
         }
         _ => panic!("expected SELECT"),
     }
@@ -6749,7 +6755,12 @@ fn test_hint_with_queryblock() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     match &stmts[0] {
-        Statement::Select(s) => assert_eq!(s.hints, vec!["tablescan(@sel$1 t1)"]),
+        Statement::Select(s) => {
+            assert_eq!(s.hints.len(), 1);
+            assert_eq!(s.hints[0].name, "tablescan");
+            assert_eq!(s.hints[0].queryblock.as_deref(), Some("@sel$1"));
+            assert_eq!(s.hints[0].args.as_deref(), Some("t1"));
+        }
         _ => panic!("expected SELECT"),
     }
 }
@@ -6761,6 +6772,14 @@ fn test_hint_set_guc() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
+    match &stmts[0] {
+        Statement::Select(s) => {
+            assert_eq!(s.hints.len(), 1);
+            assert_eq!(s.hints[0].name, "set");
+            assert_eq!(s.hints[0].args.as_deref(), Some("enable_hashjoin off"));
+        }
+        _ => {}
+    }
 }
 
 #[test]

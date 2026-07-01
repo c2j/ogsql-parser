@@ -489,7 +489,7 @@ fn check_p008(
             let has_hashagg = s
                 .hints
                 .iter()
-                .any(|h| h.to_lowercase().contains("hashagg") || h.to_lowercase().contains("use_hash_agg"));
+                .any(|h| h.name.to_lowercase().contains("hashagg") || h.name.to_lowercase() == "use_hash_agg");
             if !has_hashagg {
                 let loc = loc_from_spanned(s, stmt_location(curr_stmt));
                 warnings.push(make_warning(

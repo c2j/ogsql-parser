@@ -1869,12 +1869,27 @@ impl SqlFormatter {
         result
     }
 
-    fn format_hints(&self, hints: &[String]) -> Option<String> {
+    fn format_hints(&self, hints: &[HintInfo]) -> Option<String> {
         if hints.is_empty() {
             return None;
         }
-        let formatted: Vec<String> = hints.iter().map(|h| format!("/*+ {} */", h)).collect();
-        Some(formatted.join(" "))
+        let formatted: Vec<String> = hints
+            .iter()
+            .map(|h| {
+                let mut s = if h.negated { format!("no {}", h.name) } else { h.name.clone() };
+                if let Some(ref qb) = h.queryblock {
+                    s.push(' ');
+                    s.push_str(qb);
+                }
+                if let Some(ref args) = h.args {
+                    s.push('(');
+                    s.push_str(args);
+                    s.push(')');
+                }
+                s
+            })
+            .collect();
+        Some(format!("/*+ {} */", formatted.join(" ")))
     }
 
     fn format_insert(&self, stmt: &InsertStatement) -> String {
