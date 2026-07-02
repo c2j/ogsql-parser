@@ -649,8 +649,10 @@ fn check_r009(
     }
 }
 
-// R010: Function side effect — non-SELECT DML, transaction control, or calls
-// to procedures with transactions.
+// R010: Function side effect — explicit transaction control (COMMIT/ROLLBACK/SAVEPOINT
+// /SET TRANSACTION) or calls to procedures/functions with transactions.
+// DML statements (INSERT/UPDATE/DELETE/MERGE/TRUNCATE) without explicit transaction
+// control are allowed in functions.
 fn check_r010(
     curr_stmt: &StatementInfo,
     stmts: &[StatementInfo],
@@ -674,30 +676,37 @@ fn check_r010(
 
     scan_block_for_side_effects(block, &tx_procedures, &mut has_dml, &mut has_tx, &mut called_tx_procs);
 
-    if !has_dml && !has_tx && called_tx_procs.is_empty() {
+    if !has_tx && called_tx_procs.is_empty() {
         return;
     }
 
     let mut details: Vec<String> = Vec::new();
-    if has_dml {
+    if has_tx {
         details.push(
-            "\u{975e} SELECT DML \u{64cd}\u{4f5c}\u{ff08}INSERT/UPDATE/DELETE/MERGE \u{7b49}\u{ff09}".to_string(),
+            "\u{4e8b}\u{52a1}\u{63a7}\u{5236}\u{8bed}\u{53e5}\u{ff08}COMMIT/ROLLBACK/SAVEPOINT/SET TRANSACTION\u{ff09}"
+                .to_string(),
         );
     }
-    if has_tx {
-        details.push("\u{4e8b}\u{52a1}\u{63a7}\u{5236}\u{8bed}\u{53e5}\u{ff08}COMMIT/ROLLBACK\u{ff09}".to_string());
-    }
     for name in &called_tx_procs {
-        details.push(format!("\u{8c03}\u{7528}\u{542b}\u{4e8b}\u{52a1}\u{7684}\u{8fc7}\u{7a0b} \"{}\"", name));
+        details.push(format!(
+            "\u{8c03}\u{7528}\u{542b}\u{4e8b}\u{52a1}\u{7684}\u{8fc7}\u{7a0b}/\u{51fd}\u{6570} \"{}\"",
+            name
+        ));
     }
-    let message = format!("\u{51fd}\u{6570} \"{}\" \u{5305}\u{542b}\u{4e0d}\u{5efa}\u{8bae}\u{5728}\u{51fd}\u{6570}\u{4e2d}\u{4f7f}\u{7528}\u{7684}\u{64cd}\u{4f5c}\u{ff1a}{}", func_name, details.join("\u{ff0c}"));
+    let message = format!(
+        "\u{51fd}\u{6570} \"{}\" \u{5305}\u{542b}\u{4e0d}\u{5efa}\u{8bae}\u{5728}\u{51fd}\u{6570}\u{4e2d}\u{4f7f}\u{7528}\u{7684}\u{64cd}\u{4f5c}\u{ff1a}{}",
+        func_name,
+        details.join("\u{ff0c}")
+    );
 
     warnings.push(make_warning(
         WarningLevel::Prohibition,
         "R010",
         "function-side-effect",
         message,
-        Some("\u{51fd}\u{6570}\u{5e94}\u{907f}\u{514d}\u{4fee}\u{6539}\u{6570}\u{636e}\u{6216}\u{63d0}\u{4ea4}\u{56de}\u{6eda}\u{4e8b}\u{52a1}\u{ff0c}\u{8003}\u{8651}\u{5c06} DML / COMMIT / ROLLBACK \u{79fb}\u{81f3}\u{8fc7}\u{7a0b}\u{4e2d}"),
+        Some(
+            "\u{51fd}\u{6570}\u{4e0d}\u{5e94}\u{663e}\u{5f0f}\u{63d0}\u{4ea4}\u{6216}\u{56de}\u{6eda}\u{4e8b}\u{52a1}\u{ff0c}\u{8003}\u{8651}\u{5c06} COMMIT/ROLLBACK \u{79fb}\u{81f3}\u{8fc7}\u{7a0b}\u{4e2d}\u{ff0c}\u{51fd}\u{6570}\u{5185}\u{53ef}\u{4f7f}\u{7528} DML \u{4f46}\u{4e0d}\u{5e94}\u{63a7}\u{5236}\u{4e8b}\u{52a1}",
+        ),
         loc,
         Some("\u{5f00}\u{53d1}\u{8bbe}\u{8ba1}\u{5efa}\u{8bae} > \u{51fd}\u{6570}\u{89c4}\u{8303}"),
         confidence,

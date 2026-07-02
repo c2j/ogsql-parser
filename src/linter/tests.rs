@@ -1375,37 +1375,37 @@ fn test_s006_large_n_no_quadratic_explosion_issue_246() {
 // ── R010: function-side-effect ──
 
 #[test]
-fn r010_insert_in_function_warns() {
+fn r010_insert_in_function_ok() {
     let stmts = parse(
         "CREATE OR REPLACE FUNCTION fn() RETURNS void LANGUAGE plpgsql AS $$ BEGIN INSERT INTO t VALUES (1); END; $$",
     );
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R010"), "function with INSERT should trigger R010");
+    assert!(!has_rule(&w, "R010"), "function with INSERT (no transaction) should not trigger R010");
 }
 
 #[test]
-fn r010_update_in_function_warns() {
+fn r010_update_in_function_ok() {
     let stmts =
         parse("CREATE OR REPLACE FUNCTION fn() RETURNS void LANGUAGE plpgsql AS $$ BEGIN UPDATE t SET c = 1; END; $$");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R010"), "function with UPDATE should trigger R010");
+    assert!(!has_rule(&w, "R010"), "function with UPDATE (no transaction) should not trigger R010");
 }
 
 #[test]
-fn r010_delete_in_function_warns() {
+fn r010_delete_in_function_ok() {
     let stmts =
         parse("CREATE OR REPLACE FUNCTION fn() RETURNS void LANGUAGE plpgsql AS $$ BEGIN DELETE FROM t; END; $$");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R010"), "function with DELETE should trigger R010");
+    assert!(!has_rule(&w, "R010"), "function with DELETE (no transaction) should not trigger R010");
 }
 
 #[test]
-fn r010_merge_in_function_warns() {
+fn r010_merge_in_function_ok() {
     let stmts = parse(
         "CREATE FUNCTION fn() RETURNS void LANGUAGE plpgsql AS $$ BEGIN MERGE INTO t1 USING t2 ON t1.id = t2.id WHEN MATCHED THEN UPDATE SET name = t2.name; END; $$",
     );
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R010"), "function with MERGE should trigger R010");
+    assert!(!has_rule(&w, "R010"), "function with MERGE (no transaction) should not trigger R010");
 }
 
 #[test]
@@ -1425,21 +1425,21 @@ fn r010_perform_ok() {
 }
 
 #[test]
-fn r010_dml_in_nested_block_warns() {
+fn r010_dml_in_nested_block_ok() {
     let stmts = parse(
         "CREATE FUNCTION fn() RETURNS void LANGUAGE plpgsql AS $$ BEGIN BEGIN INSERT INTO t VALUES (1); END; END; $$",
     );
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R010"), "function with DML in nested block should trigger R010");
+    assert!(!has_rule(&w, "R010"), "function with DML in nested block (no transaction) should not trigger R010");
 }
 
 #[test]
-fn r010_dml_in_if_warns() {
+fn r010_dml_in_if_ok() {
     let stmts = parse(
         "CREATE FUNCTION fn() RETURNS void LANGUAGE plpgsql AS $$ BEGIN IF 1 > 0 THEN INSERT INTO t VALUES (1); END IF; END; $$",
     );
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R010"), "function with DML in IF should trigger R010");
+    assert!(!has_rule(&w, "R010"), "function with DML in IF (no transaction) should not trigger R010");
 }
 
 #[test]
@@ -1488,10 +1488,10 @@ fn r010_ddl_only_ok() {
 }
 
 #[test]
-fn r010_truncate_in_function_warns() {
+fn r010_truncate_in_function_ok() {
     let stmts = parse("CREATE FUNCTION fn() RETURNS void LANGUAGE plpgsql AS $$ BEGIN TRUNCATE TABLE t; END; $$");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R010"), "function with TRUNCATE should trigger R010");
+    assert!(!has_rule(&w, "R010"), "function with TRUNCATE (no transaction) should not trigger R010");
 }
 
 #[test]
