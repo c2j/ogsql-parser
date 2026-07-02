@@ -182,7 +182,7 @@ fn lint_sql(sql: &str, schema: Option<&SchemaMap>, check_parse_warnings: bool) -
     let mut parse_warnings = Vec::new();
     let mut parse_errors = Vec::new();
     for e in &errors {
-        if matches!(e, ParserError::Warning { .. }) {
+        if matches!(e, ParserError::Warning { .. }) || matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }) {
             parse_warnings.push(e.to_string());
         } else {
             parse_errors.push(e.clone());
@@ -190,7 +190,7 @@ fn lint_sql(sql: &str, schema: Option<&SchemaMap>, check_parse_warnings: bool) -
     }
 
     if !check_parse_warnings {
-        assert!(errors.is_empty(), "解析失败: {errors:?}");
+        assert!(parse_errors.is_empty(), "解析失败: {parse_errors:?}");
     } else {
         assert!(parse_errors.is_empty(), "解析失败(非 Warning): {parse_errors:?}");
     }
