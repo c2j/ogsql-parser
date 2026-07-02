@@ -2980,6 +2980,12 @@ impl Parser {
             };
         }
 
+        let mut constant = false;
+        if self.match_ident_str("constant") {
+            self.advance();
+            constant = true;
+        }
+
         let data_type = match self.parse_pl_data_type() {
             Ok(dt) => dt,
             Err(_) => {
@@ -2987,6 +2993,18 @@ impl Parser {
                 return None;
             }
         };
+
+        let mut not_null = false;
+        if self.peek_keyword() == Some(Keyword::NOT) {
+            let saved_pos = self.pos;
+            self.advance();
+            if self.match_keyword(Keyword::NULL_P) {
+                self.advance();
+                not_null = true;
+            } else {
+                self.pos = saved_pos;
+            }
+        }
 
         let default = if self.match_token(&Token::ColonEquals) {
             self.advance();
@@ -3012,14 +3030,7 @@ impl Parser {
 
         self.try_consume_semicolon();
 
-        Some(PlDeclaration::Variable(PlVarDecl {
-            name,
-            data_type,
-            default,
-            constant: false,
-            not_null: false,
-            collate: None,
-        }))
+        Some(PlDeclaration::Variable(PlVarDecl { name, data_type, default, constant, not_null, collate: None }))
     }
 
     fn parse_pragma_declaration(&mut self) -> PlDeclaration {
