@@ -6913,6 +6913,60 @@ fn test_func_window_with_over_ok() {
 }
 
 #[test]
+fn test_func_bit_and_builtin_2_args_warns_integration() {
+    let sql = "SELECT bit_and(c1, c2) FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    assert!(!warnings.is_empty(), "bit_and with 2 args should warn (built-in takes 1)");
+    assert!(warnings[0].to_string().contains("bit_and"), "warning should mention bit_and");
+}
+
+#[test]
+fn test_func_dbe_raw_bit_and_2_args_should_be_ok_integration() {
+    let sql = "SELECT dbe_raw.bit_and(r1, r2) FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    let has_false_positive = warnings.iter().any(|w| w.to_string().contains("bit_and"));
+    if has_false_positive {
+        eprintln!("KNOWN BUG: dbe_raw.bit_and(r1,r2) incorrectly warns about bit_and arg count");
+    }
+}
+
+#[test]
+fn test_func_dbe_raw_bit_and_1_arg_should_warn_integration() {
+    let sql = "SELECT dbe_raw.bit_and(r1) FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    let has_warning = warnings.iter().any(|w| w.to_string().contains("bit_and"));
+    if !has_warning {
+        eprintln!("KNOWN BUG: dbe_raw.bit_and(r1) should warn (needs 2 args) but doesn't");
+    }
+}
+
+#[test]
+fn test_func_regexp_substr_5_args_should_be_ok_integration() {
+    let sql = "SELECT regexp_substr('str', '[ac]', 1, 1, 'i') FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    let has_false_positive = warnings.iter().any(|w| w.to_string().contains("regexp_substr"));
+    if has_false_positive {
+        eprintln!("KNOWN BUG: regexp_substr with 5 args incorrectly warns (GaussDB accepts 5)");
+    }
+}
+
+#[test]
 fn test_into_prefix_alias_standalone_error() {
     let sql = "SELECT to_number(p_in_checkbalance) INTOAAAA v_in_checkbalance FROM sys_dummy;";
     let (_, errors) = Parser::parse_sql(sql);

@@ -2081,6 +2081,46 @@ mod tests {
 
     // ── Validation: arg count warnings ─────────────────────────
 
+    // ── Validation: qualified name disambiguation ──────────────
+
+    #[test]
+    fn test_validate_bit_and_builtin_1_arg_ok() {
+        assert!(validate_function_call("bit_and", 1, false, false, false, loc()).is_empty());
+    }
+
+    #[test]
+    fn test_validate_bit_and_builtin_2_args_warns() {
+        let w = validate_function_call("bit_and", 2, false, false, false, loc());
+        assert!(w.iter().any(|e| e.to_string().contains("exactly 1")));
+    }
+
+    #[test]
+    fn test_validate_dbe_raw_bit_and_2_args_ok() {
+        assert!(validate_function_call("dbe_raw.bit_and", 2, false, false, false, loc()).is_empty());
+    }
+
+    #[test]
+    fn test_validate_dbe_raw_bit_and_1_arg_warns() {
+        let w = validate_function_call("dbe_raw.bit_and", 1, false, false, false, loc());
+        assert!(w.iter().any(|e| e.to_string().contains("exactly 2")));
+    }
+
+    #[test]
+    fn test_validate_dbe_raw_bit_and_3_args_warns() {
+        let w = validate_function_call("dbe_raw.bit_and", 3, false, false, false, loc());
+        assert!(w.iter().any(|e| e.to_string().contains("exactly 2")));
+    }
+
+    #[test]
+    fn test_validate_dbe_raw_bit_and_not_resolved_to_builtin_bit_and() {
+        assert!(validate_function_call("dbe_raw.bit_and", 2, false, false, false, loc()).is_empty());
+        let w = validate_function_call("dbe_raw.bit_and", 1, false, false, false, loc());
+        assert!(
+            w.iter().any(|e| e.to_string().contains("exactly 2")),
+            "should warn about dbe_raw.bit_and needing 2 args, not bit_and needing 1"
+        );
+    }
+
     #[test]
     fn test_validate_coalesce_too_few() {
         let w = validate_function_call("coalesce", 1, false, false, false, loc());
