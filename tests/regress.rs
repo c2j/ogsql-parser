@@ -1,7 +1,7 @@
-//! Lint rule regression guard tests.
+//! Lint rule & parser warning regression guard tests.
 //!
 //! Scans `tests/regress/` for `.sql` fixture files.  Each file header
-//! declares expected rule behaviour:
+//! declares expected behaviour:
 //!
 //! ```sql
 //! -- description: standalone SELECT * should warn
@@ -9,10 +9,15 @@
 //! SELECT * FROM t1;
 //! ```
 //!
-//! - `-- description:`  (required) human-readable test name
-//! - `-- warn: R001`     (repeatable) rule MUST fire
-//! - `-- nowarn: R001`   (repeatable) rule must NOT fire
-//! - `-- split: semicolon` (optional) split by `;`, parse each block separately
+//! - `-- description:`     (required) human-readable test name
+//! - `-- warn: R001`        (repeatable) linter rule MUST fire
+//! - `-- nowarn: R001`      (repeatable) linter rule must NOT fire
+//! - `-- parse-warn: <text>`(repeatable) parser warning MUST contain <text>
+//! - `-- parse-nowarn: <text>`(repeatable) parser warning must NOT contain <text>
+//! - `-- split: semicolon`  (optional) split by `;`, parse each block separately
+//!
+//! Fixtures with `-- parse-warn` or `-- parse-nowarn` relax the
+//! `errors.is_empty()` check — only fatal parse errors cause failure.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -20,7 +25,7 @@ use std::path::PathBuf;
 
 use ogsql_parser::analyzer::schema::SchemaMap;
 use ogsql_parser::linter::{Confidence, LintConfig, SqlLinter};
-use ogsql_parser::Parser;
+use ogsql_parser::{Parser, ParserError};
 
 // ── metadata parsing ──────────────────────────────────────
 
@@ -30,6 +35,8 @@ struct Fixture {
     sql: String,
     warn: Vec<String>,
     nowarn: Vec<String>,
+    parse_warn: Vec<String>,
+    parse_nowarn: Vec<String>,
     split: Option<String>,
     schema_entries: Vec<SchemaEntry>,
 }
@@ -79,6 +86,8 @@ fn collect_fixtures(dir: &PathBuf, prefix: &str, results: &mut Vec<Fixture>) {
             meta.get("description").cloned().unwrap_or_else(|| panic!("[{name}] 缺少 '-- description:' 元数据"));
         let warn_lines = meta.get("warn").cloned().unwrap_or_default();
         let nowarn_lines = meta.get("nowarn").cloned().unwrap_or_default();
+        let parse_warn_lines = meta.get("parse-warn").cloned().unwrap_or_default();
+        let parse_nowarn_lines = meta.get("parse-nowarn").cloned().unwrap_or_default();
         let split = meta.get("split").cloned();
         let schema_entries = parse_schema_entries(meta.get("schema"));
 
@@ -88,6 +97,8 @@ fn collect_fixtures(dir: &PathBuf, prefix: &str, results: &mut Vec<Fixture>) {
             sql,
             warn: split_ids(&warn_lines),
             nowarn: split_ids(&nowarn_lines),
+            parse_warn: split_texts(&parse_warn_lines),
+            parse_nowarn: split_texts(&parse_nowarn_lines),
             split,
             schema_entries,
         });
@@ -125,6 +136,10 @@ fn split_ids(s: &str) -> Vec<String> {
     s.split(',').map(|id| id.trim().to_uppercase()).filter(|id| !id.is_empty()).collect()
 }
 
+fn split_texts(s: &str) -> Vec<String> {
+    s.split(',').map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect()
+}
+
 fn parse_schema_entries(raw: Option<&String>) -> Vec<SchemaEntry> {
     let Some(raw) = raw else { return vec![] };
     raw.split(',')
@@ -154,15 +169,37 @@ fn build_schema(entries: &[SchemaEntry]) -> SchemaMap {
 
 // ── assertion ─────────────────────────────────────────────
 
-fn lint_sql(sql: &str, schema: Option<&SchemaMap>) -> Vec<String> {
+struct LintResult {
+    rule_ids: Vec<String>,
+    parse_warnings: Vec<String>,
+    parse_errors: Vec<ParserError>,
+}
+
+fn lint_sql(sql: &str, schema: Option<&SchemaMap>, check_parse_warnings: bool) -> LintResult {
     let (infos, errors) = Parser::parse_sql(sql);
-    assert!(errors.is_empty(), "解析失败: {errors:?}");
     assert!(!infos.is_empty(), "未生成任何 statement");
 
-    let linter = SqlLinter::with_default_rules(LintConfig::default());
-    let warnings = linter.lint(&infos, schema, Confidence::Full);
+    let mut parse_warnings = Vec::new();
+    let mut parse_errors = Vec::new();
+    for e in &errors {
+        if matches!(e, ParserError::Warning { .. }) {
+            parse_warnings.push(e.to_string());
+        } else {
+            parse_errors.push(e.clone());
+        }
+    }
 
-    warnings.iter().map(|w| w.rule_id.clone()).collect()
+    if !check_parse_warnings {
+        assert!(errors.is_empty(), "解析失败: {errors:?}");
+    } else {
+        assert!(parse_errors.is_empty(), "解析失败(非 Warning): {parse_errors:?}");
+    }
+
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let linter_warnings = linter.lint(&infos, schema, Confidence::Full);
+    let rule_ids = linter_warnings.iter().map(|w| w.rule_id.clone()).collect();
+
+    LintResult { rule_ids, parse_warnings, parse_errors }
 }
 
 // ── test entry ────────────────────────────────────────────
@@ -175,8 +212,9 @@ fn all_regress_fixtures() {
     for f in &fixtures {
         let label = format!("{} ({})", f.name, f.description);
         let schema = if f.schema_entries.is_empty() { None } else { Some(build_schema(&f.schema_entries)) };
+        let check_parse_warnings = !f.parse_warn.is_empty() || !f.parse_nowarn.is_empty();
 
-        let rule_ids = if let Some(ref sep) = f.split {
+        let lint_result = if let Some(ref sep) = f.split {
             let delimiter = match sep.as_str() {
                 "semicolon" => ";",
                 "blank-line" => "\n\n",
@@ -184,25 +222,49 @@ fn all_regress_fixtures() {
             };
             let blocks: Vec<&str> = f.sql.split(delimiter).filter(|b| !b.trim().is_empty()).collect();
             assert!(!blocks.is_empty(), "[{label}] 无可分块的 SQL");
-            let mut all_ids = Vec::new();
-            for (_i, block) in blocks.iter().enumerate() {
+            let mut combined =
+                LintResult { rule_ids: Vec::new(), parse_warnings: Vec::new(), parse_errors: Vec::new() };
+            for block in &blocks {
                 let sql = if delimiter == "\n\n" { block.to_string() } else { format!("{};", block.trim()) };
-                let ids = lint_sql(&sql, schema.as_ref());
-                all_ids.extend(ids);
+                let r = lint_sql(&sql, schema.as_ref(), check_parse_warnings);
+                combined.rule_ids.extend(r.rule_ids);
+                combined.parse_warnings.extend(r.parse_warnings);
+                combined.parse_errors.extend(r.parse_errors);
             }
-            all_ids
+            combined
         } else {
-            lint_sql(&f.sql, schema.as_ref())
+            lint_sql(&f.sql, schema.as_ref(), check_parse_warnings)
         };
 
         for id in &f.warn {
-            assert!(rule_ids.contains(id), "[{label}] 期望规则 {id} 触发，实际未触发\n  实际触发的规则: {rule_ids:?}");
+            assert!(
+                lint_result.rule_ids.contains(id),
+                "[{label}] 期望规则 {id} 触发，实际未触发\n  实际触发的规则: {:?}",
+                lint_result.rule_ids
+            );
         }
 
         for id in &f.nowarn {
             assert!(
-                !rule_ids.contains(id),
-                "[{label}] 期望规则 {id} 不触发，实际触发了\n  实际触发的规则: {rule_ids:?}"
+                !lint_result.rule_ids.contains(id),
+                "[{label}] 期望规则 {id} 不触发，实际触发了\n  实际触发的规则: {:?}",
+                lint_result.rule_ids
+            );
+        }
+
+        for text in &f.parse_warn {
+            assert!(
+                lint_result.parse_warnings.iter().any(|w| w.contains(text.as_str())),
+                "[{label}] 期望 parser warning 包含 '{text}'，实际未匹配\n  实际 parser warning: {:?}",
+                lint_result.parse_warnings
+            );
+        }
+
+        for text in &f.parse_nowarn {
+            assert!(
+                !lint_result.parse_warnings.iter().any(|w| w.contains(text.as_str())),
+                "[{label}] 期望 parser warning 不包含 '{text}'，实际匹配了\n  实际 parser warning: {:?}",
+                lint_result.parse_warnings
             );
         }
 
