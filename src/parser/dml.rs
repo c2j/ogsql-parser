@@ -123,6 +123,7 @@ impl Parser {
                                     },
                                 ),
                                 location: paren_loc,
+                                level: crate::linter::WarningLevel::Caution,
                             });
                             select = self.parse_set_operations(select)?;
                         }
@@ -378,6 +379,7 @@ impl Parser {
             self.add_error(ParserError::Warning {
                 message: "UPDATE ORDER BY without LIMIT has no effect on row update order".to_string(),
                 location: self.prev_location(),
+                level: crate::linter::WarningLevel::Performance,
             });
         }
         let (returning, into_targets, bulk_collect) = if self.match_keyword(Keyword::RETURNING) {
@@ -522,6 +524,7 @@ impl Parser {
             self.add_error(ParserError::Warning {
                 message: "DELETE ORDER BY without LIMIT has no effect on row deletion order".to_string(),
                 location: self.prev_location(),
+                level: crate::linter::WarningLevel::Performance,
             });
         }
         let (returning, into_targets, bulk_collect) = if self.match_keyword(Keyword::RETURNING) {

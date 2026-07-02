@@ -3406,6 +3406,7 @@ fn output_csv_validate_rows(
     lint_warnings: &[ogsql_parser::linter::SqlWarning],
     file_name: &str,
     rel_dir: &str,
+    min_level: Option<ogsql_parser::linter::WarningLevel>,
 ) {
     for si in stmts {
         let stmt_start = si.start_line;
@@ -3442,7 +3443,7 @@ fn output_csv_validate_rows(
         for (row_idx, row) in rows.iter().enumerate() {
             let is_parent_with_children = row_idx == 0 && row_count > 1;
 
-            let row_parse_errors: Vec<&ogsql_parser::ParserError> = stmt_parse_errors
+            let mut row_parse_errors: Vec<&ogsql_parser::ParserError> = stmt_parse_errors
                 .iter()
                 .filter(|e| {
                     let eline = error_line(e);
@@ -3458,6 +3459,14 @@ fn output_csv_validate_rows(
                 })
                 .copied()
                 .collect();
+
+            // Filter parser warnings by min_level (when --lint --min-level is specified)
+            if let Some(ml) = min_level {
+                row_parse_errors.retain(|e| match e {
+                    ogsql_parser::ParserError::Warning { level, .. } => *level >= ml,
+                    _ => true,
+                });
+            }
 
             let row_parse_err = merge_error_messages(&row_parse_errors, false);
             let row_parse_warn = merge_error_messages(&row_parse_errors, true);
@@ -3808,6 +3817,7 @@ fn validate_from_stmts(
         errors.push(ogsql_parser::ParserError::Warning {
             message: msg,
             location: ogsql_parser::SourceLocation::default(),
+            level: ogsql_parser::linter::WarningLevel::Caution,
         });
     }
 
@@ -3854,6 +3864,13 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
     let sql = read_input(file_path);
     let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
 
+    let min_level = cli.min_level.as_ref().map(|s| match s.to_lowercase().as_str() {
+        "prohibition" => ogsql_parser::linter::WarningLevel::Prohibition,
+        "performance" => ogsql_parser::linter::WarningLevel::Performance,
+        "caution" => ogsql_parser::linter::WarningLevel::Caution,
+        _ => ogsql_parser::linter::WarningLevel::Suggestion,
+    });
+
     let lint_warnings = if cli.lint {
         let config = build_lint_config(cli);
         run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, load_lint_schema(cli).as_ref())
@@ -3880,10 +3897,11 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
             all_errors.push(ogsql_parser::ParserError::Warning {
                 message: msg,
                 location: ogsql_parser::SourceLocation::default(),
+                level: ogsql_parser::linter::WarningLevel::Caution,
             });
         }
         output_csv_validate_header();
-        output_csv_validate_rows(&stmts, &all_errors, &var_errors, &lint_warnings, file_name, ".");
+        output_csv_validate_rows(&stmts, &all_errors, &var_errors, &lint_warnings, file_name, ".", min_level);
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
         if has_errors {
@@ -3990,6 +4008,13 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
         ogsql_parser::FullSchema::default()
     };
 
+    let min_level = cli.min_level.as_ref().map(|s| match s.to_lowercase().as_str() {
+        "prohibition" => ogsql_parser::linter::WarningLevel::Prohibition,
+        "performance" => ogsql_parser::linter::WarningLevel::Performance,
+        "caution" => ogsql_parser::linter::WarningLevel::Caution,
+        _ => ogsql_parser::linter::WarningLevel::Suggestion,
+    });
+
     if csv {
         output_csv_validate_header();
         let mut any_errors = false;
@@ -4005,6 +4030,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
                 all_errors.push(ogsql_parser::ParserError::Warning {
                     message: msg,
                     location: ogsql_parser::SourceLocation::default(),
+                    level: ogsql_parser::linter::WarningLevel::Caution,
                 });
             }
             let lint_warnings = if cli.lint {
@@ -4016,7 +4042,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
             } else {
                 vec![]
             };
-            output_csv_validate_rows(&stmts, &all_errors, &var_errors, &lint_warnings, file_path, ".");
+            output_csv_validate_rows(&stmts, &all_errors, &var_errors, &lint_warnings, file_path, ".", min_level);
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             if !real_errors.is_empty() || !var_errors.is_empty() {
                 any_errors = true;
@@ -4210,6 +4236,13 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
         }
     }
 
+    let min_level = cli.min_level.as_ref().map(|s| match s.to_lowercase().as_str() {
+        "prohibition" => ogsql_parser::linter::WarningLevel::Prohibition,
+        "performance" => ogsql_parser::linter::WarningLevel::Performance,
+        "caution" => ogsql_parser::linter::WarningLevel::Caution,
+        _ => ogsql_parser::linter::WarningLevel::Suggestion,
+    });
+
     for (file_name, rel_dir, abs_path) in &files {
         let sql = read_file_path(abs_path);
         let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs, strict);
@@ -4260,6 +4293,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                 all_errors.push(ogsql_parser::ParserError::Warning {
                     message: msg,
                     location: ogsql_parser::SourceLocation::default(),
+                    level: ogsql_parser::linter::WarningLevel::Caution,
                 });
             }
             let lint_warnings = if cli.lint {
@@ -4268,7 +4302,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
             } else {
                 vec![]
             };
-            output_csv_validate_rows(&stmts, &all_errors, &var_errors, &lint_warnings, file_name, rel_dir);
+            output_csv_validate_rows(&stmts, &all_errors, &var_errors, &lint_warnings, file_name, rel_dir, min_level);
         } else if cli.json {
             if !real_errors.is_empty() {
                 all_results.push((
@@ -6364,6 +6398,7 @@ fn cmd_validate_java_single(
         all_errors.push(ogsql_parser::ParserError::Warning {
             message: format!("Java extraction error: {}", je),
             location: ogsql_parser::SourceLocation::default(),
+            level: ogsql_parser::linter::WarningLevel::Caution,
         });
     }
 
@@ -6641,6 +6676,7 @@ fn cmd_validate_java_dir(
             file_errors.push(ogsql_parser::ParserError::Warning {
                 message: format!("Java extraction error: {}", je),
                 location: ogsql_parser::SourceLocation::default(),
+                level: ogsql_parser::linter::WarningLevel::Caution,
             });
         }
 

@@ -289,6 +289,7 @@ fn do_validate(input: ValidateInput) -> Result<Json<ValidateResponse>, ApiError>
             errors.push(ogsql_parser::ParserError::Warning {
                 message: msg,
                 location: ogsql_parser::SourceLocation::default(),
+                level: ogsql_parser::linter::WarningLevel::Caution,
             });
         }
     }
@@ -661,6 +662,7 @@ fn do_validate_java(input: ValidateJavaInput) -> Result<Json<ValidateResponse>, 
         all_errors.push(ogsql_parser::ParserError::Warning {
             message: format!("Java extraction error: {}", je),
             location: ogsql_parser::SourceLocation::default(),
+            level: ogsql_parser::linter::WarningLevel::Caution,
         });
     }
 

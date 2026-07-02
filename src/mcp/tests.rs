@@ -147,8 +147,11 @@ fn test_json2sql_tool_bad_json() {
 
 #[test]
 fn test_is_warning() {
-    let warning =
-        crate::ParserError::Warning { message: "test".to_string(), location: crate::SourceLocation::default() };
+    let warning = crate::ParserError::Warning {
+        message: "test".to_string(),
+        location: crate::SourceLocation::default(),
+        level: crate::linter::WarningLevel::Suggestion,
+    };
     assert!(is_warning(&warning));
 
     let error =

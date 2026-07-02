@@ -272,6 +272,7 @@ impl FunctionRegistry {
                         warnings.push(ParserError::Warning {
                             message: format!("function {} takes no arguments", display_name),
                             location,
+                            level: crate::linter::WarningLevel::Caution,
                         });
                     }
                 }
@@ -283,6 +284,7 @@ impl FunctionRegistry {
                                 display_name, meta.min_args
                             ),
                             location,
+                            level: crate::linter::WarningLevel::Caution,
                         });
                     }
                 }
@@ -294,12 +296,14 @@ impl FunctionRegistry {
                                 display_name, meta.min_args
                             ),
                             location,
+                            level: crate::linter::WarningLevel::Caution,
                         });
                     }
                     if arg_count > max as usize {
                         warnings.push(ParserError::Warning {
                             message: format!("function {} takes at most {} argument(s)", display_name, max),
                             location,
+                            level: crate::linter::WarningLevel::Caution,
                         });
                     }
                 }
@@ -311,6 +315,7 @@ impl FunctionRegistry {
                                 display_name, meta.min_args
                             ),
                             location,
+                            level: crate::linter::WarningLevel::Caution,
                         });
                     }
                 }
@@ -321,6 +326,7 @@ impl FunctionRegistry {
             warnings.push(ParserError::Warning {
                 message: format!("DISTINCT is not supported for function {}", display_name),
                 location,
+                level: crate::linter::WarningLevel::Caution,
             });
         }
 
@@ -328,6 +334,7 @@ impl FunctionRegistry {
             warnings.push(ParserError::Warning {
                 message: format!("window function {} should have OVER clause", display_name),
                 location,
+                level: crate::linter::WarningLevel::Caution,
             });
         }
 
@@ -1651,6 +1658,7 @@ pub fn validate_function_call(
                     warnings.push(ParserError::Warning {
                         message: format!("function {} takes no arguments", meta.name),
                         location,
+                        level: crate::linter::WarningLevel::Caution,
                     });
                 }
             }
@@ -1659,6 +1667,7 @@ pub fn validate_function_call(
                     warnings.push(ParserError::Warning {
                         message: format!("function {} requires exactly {} argument(s)", meta.name, meta.min_args),
                         location,
+                        level: crate::linter::WarningLevel::Caution,
                     });
                 }
             }
@@ -1667,12 +1676,14 @@ pub fn validate_function_call(
                     warnings.push(ParserError::Warning {
                         message: format!("function {} requires at least {} argument(s)", meta.name, meta.min_args),
                         location,
+                        level: crate::linter::WarningLevel::Caution,
                     });
                 }
                 if arg_count > max as usize {
                     warnings.push(ParserError::Warning {
                         message: format!("function {} takes at most {} argument(s)", meta.name, max),
                         location,
+                        level: crate::linter::WarningLevel::Caution,
                     });
                 }
             }
@@ -1682,6 +1693,7 @@ pub fn validate_function_call(
                     warnings.push(ParserError::Warning {
                         message: format!("function {} requires at least {} argument(s)", meta.name, meta.min_args),
                         location,
+                        level: crate::linter::WarningLevel::Caution,
                     });
                 }
             }
@@ -1692,6 +1704,7 @@ pub fn validate_function_call(
         warnings.push(ParserError::Warning {
             message: format!("DISTINCT is not supported for function {}", meta.name),
             location,
+            level: crate::linter::WarningLevel::Caution,
         });
     }
 
@@ -1700,6 +1713,7 @@ pub fn validate_function_call(
         warnings.push(ParserError::Warning {
             message: format!("window function {} should have OVER clause", meta.name),
             location,
+            level: crate::linter::WarningLevel::Caution,
         });
     }
 

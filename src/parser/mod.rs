@@ -20,7 +20,7 @@ pub enum ParserError {
     #[error("unexpected end of input at line {}, column {}: expected {}", .location.line, .location.column, expected)]
     UnexpectedEof { expected: String, location: SourceLocation },
     #[error("{message}{loc}", loc = .location.format_if_real())]
-    Warning { message: String, location: SourceLocation },
+    Warning { message: String, location: SourceLocation, level: crate::linter::WarningLevel },
     #[error("reserved keyword \"{}\" cannot be used as identifier at line {}, column {}", .keyword, .location.line, .location.column)]
     ReservedKeywordAsIdentifier { keyword: String, location: SourceLocation },
     #[error("{0}")]
@@ -118,6 +118,7 @@ impl Parser {
             Err(ParserError::Warning {
                 message: format!("nesting depth exceeded {} — skipping", MAX_PARSE_DEPTH),
                 location: self.current_location(),
+                level: crate::linter::WarningLevel::Caution,
             })
         } else {
             Ok(())

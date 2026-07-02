@@ -401,6 +401,7 @@ impl Parser {
                         &upper[4..]
                     ),
                     location: loc,
+                    level: crate::linter::WarningLevel::Suggestion,
                 });
             }
         }

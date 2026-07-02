@@ -240,7 +240,11 @@ impl OgsqlServer {
                     Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
                     None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
                 };
-                errors.push(crate::ParserError::Warning { message: msg, location: crate::SourceLocation::default() });
+                errors.push(crate::ParserError::Warning {
+                    message: msg,
+                    location: crate::SourceLocation::default(),
+                    level: crate::linter::WarningLevel::Caution,
+                });
             }
         }
         let merge_errors = crate::validate_merge_semantics(&output.statements);

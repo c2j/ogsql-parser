@@ -274,6 +274,7 @@ fn validate_single_hint(hint: &HintInfo, location: SourceLocation) -> Vec<Parser
         warnings.push(ParserError::Warning {
             message: format!("Unknown hint '{}' — not in GaussDB documented hint list", hint.name),
             location,
+            level: crate::linter::WarningLevel::Caution,
         });
         return warnings;
     }
@@ -282,6 +283,7 @@ fn validate_single_hint(hint: &HintInfo, location: SourceLocation) -> Vec<Parser
         warnings.push(ParserError::Warning {
             message: format!("Hint 'no {}' does not support 'no' prefix negation", hint.name),
             location,
+            level: crate::linter::WarningLevel::Caution,
         });
     }
 
@@ -290,6 +292,7 @@ fn validate_single_hint(hint: &HintInfo, location: SourceLocation) -> Vec<Parser
         warnings.push(ParserError::Warning {
             message: format!("Hint '{}' requires parenthesized arguments, e.g. {}(table_name)", hint.name, hint.name),
             location,
+            level: crate::linter::WarningLevel::Caution,
         });
     }
 
@@ -297,6 +300,7 @@ fn validate_single_hint(hint: &HintInfo, location: SourceLocation) -> Vec<Parser
         warnings.push(ParserError::Warning {
             message: format!("Hint '{}' does not take parenthesized arguments", hint.name),
             location,
+            level: crate::linter::WarningLevel::Caution,
         });
     }
 
@@ -309,6 +313,7 @@ fn validate_single_hint(hint: &HintInfo, location: SourceLocation) -> Vec<Parser
                         "Hint 'wlmrule' requires quoted argument: wlmrule(\"time_limit,max_execute_time,max_iops\")"
                             .to_string(),
                     location,
+                    level: crate::linter::WarningLevel::Caution,
                 });
             }
         }
@@ -321,6 +326,7 @@ fn validate_single_hint(hint: &HintInfo, location: SourceLocation) -> Vec<Parser
                 warnings.push(ParserError::Warning {
                     message: "Hint 'set' requires parameter name and value: set(param_name value)".to_string(),
                     location,
+                    level: crate::linter::WarningLevel::Caution,
                 });
             }
         }
@@ -333,6 +339,7 @@ fn validate_single_hint(hint: &HintInfo, location: SourceLocation) -> Vec<Parser
                 warnings.push(ParserError::Warning {
                     message: "Hint 'leading' requires at least one table name".to_string(),
                     location,
+                    level: crate::linter::WarningLevel::Caution,
                 });
             } else {
                 let open = trimmed.chars().filter(|c| *c == '(').count();
@@ -341,6 +348,7 @@ fn validate_single_hint(hint: &HintInfo, location: SourceLocation) -> Vec<Parser
                     warnings.push(ParserError::Warning {
                         message: "Hint 'leading' has unbalanced parentheses in table list".to_string(),
                         location,
+                        level: crate::linter::WarningLevel::Caution,
                     });
                 }
             }

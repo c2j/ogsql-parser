@@ -573,6 +573,7 @@ impl Parser {
                                 self.add_error(ParserError::Warning {
                                     message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
                                     location: loc,
+                                    level: crate::linter::WarningLevel::Suggestion,
                                 });
                                 if let Expr::ColumnRef(name) = &*left {
                                     *left = Expr::ColumnRefOuterJoin(name.clone());
@@ -1185,6 +1186,7 @@ impl Parser {
                             self.add_error(ParserError::Warning {
                                 message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
                                 location: loc,
+                                level: crate::linter::WarningLevel::Suggestion,
                             });
                             return Ok(Expr::ColumnRefOuterJoin(name));
                         }
@@ -1300,6 +1302,7 @@ impl Parser {
                                 "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead"
                                     .to_string(),
                             location: loc,
+                            level: crate::linter::WarningLevel::Suggestion,
                         });
                         return Ok(Expr::ColumnRefOuterJoin(obj_name));
                     }
@@ -1336,6 +1339,7 @@ impl Parser {
                             "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead"
                                 .to_string(),
                         location: loc,
+                        level: crate::linter::WarningLevel::Suggestion,
                     });
                     return Ok(Expr::ColumnRefOuterJoin(name));
                 }
