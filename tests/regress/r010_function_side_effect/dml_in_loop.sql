@@ -1,5 +1,5 @@
--- description: function with DML in LOOP should trigger R010
--- warn: R010
+-- description: function with DML in LOOP without transaction should NOT trigger R010
+-- nowarn: R010
 CREATE OR REPLACE FUNCTION fn_insert_in_loop() RETURNS void
 LANGUAGE plpgsql
 AS $$

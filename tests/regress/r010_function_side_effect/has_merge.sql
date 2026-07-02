@@ -1,5 +1,5 @@
--- description: function with MERGE should trigger R010
--- warn: R010
+-- description: function with MERGE without transaction should NOT trigger R010
+-- nowarn: R010
 CREATE OR REPLACE FUNCTION fn_merge() RETURNS void
 LANGUAGE plpgsql
 AS $$
