@@ -1,5 +1,5 @@
--- description: function with DML in IF without transaction should NOT trigger R010
--- nowarn: R010
+-- description: function with DML nested in IF block should trigger R010
+-- warn: R010
 CREATE OR REPLACE FUNCTION fn_insert_in_if() RETURNS void
 LANGUAGE plpgsql
 AS $$

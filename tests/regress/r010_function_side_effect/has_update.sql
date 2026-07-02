@@ -1,5 +1,5 @@
--- description: function with UPDATE without transaction should NOT trigger R010
--- nowarn: R010
+-- description: function with UPDATE should trigger R010
+-- warn: R010
 CREATE OR REPLACE FUNCTION fn_update() RETURNS void
 LANGUAGE plpgsql
 AS $$
