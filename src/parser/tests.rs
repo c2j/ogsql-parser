@@ -7471,6 +7471,44 @@ fn test_nvl_function_call_no_warning() {
 }
 
 #[test]
+fn test_method_style_function_call_no_warning() {
+    // getstringval supports both function-style: getstringval(x)
+    // and method-style: x.getstringval()
+    let sql = "SELECT xmltype('<a>123<b>456</b></a>').getstringval()";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty(), "should parse method-style function call");
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    assert!(warnings.is_empty(), "method-style call should not generate warnings: {:?}", warnings);
+}
+
+#[test]
+fn test_method_style_function_call_with_args() {
+    // existsnode(xmltype, varchar2) → xmltype.existsnode(varchar2)
+    let sql = "SELECT xmltype('<a>123</a>').existsnode('/a')";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty(), "should parse method-style call with extra args");
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    assert!(warnings.is_empty(), "method-style call with args should not generate warnings: {:?}", warnings);
+}
+
+#[test]
+fn test_method_style_chained_calls() {
+    // Chained: xmltype('a').extractxml('/a/b').getstringval()
+    // equivalent to: getstringval(extractxml(xmltype('a'), '/a/b'))
+    let sql = "SELECT xmltype('<a>123<b>456</b></a>').extractxml('/a/b').getstringval()";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty(), "should parse chained method-style calls");
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    assert!(warnings.is_empty(), "chained method-style calls should not generate warnings: {:?}", warnings);
+}
+
+#[test]
 fn test_name_as_alias_no_warning() {
     let sql = "SELECT c1 AS name FROM t";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
