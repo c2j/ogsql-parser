@@ -1368,6 +1368,7 @@ fn read_file_path(path: &std::path::Path) -> String {
 }
 
 fn output_csv_parse_header() {
+    print!("\u{FEFF}");
     println!(
         "file,directory,line,type,name,parent,parameters,return_type,sql,error,warning,branch_path,branch_condition"
     );
@@ -3217,6 +3218,7 @@ fn output_extract_rows_text(
 }
 
 fn output_csv_validate_header() {
+    print!("\u{FEFF}");
     println!(
         "file,directory,line,type,name,parent,parameters,return_type,sql,valid,error_count,warning_count,errors,warnings"
     );
@@ -6309,6 +6311,7 @@ fn extract_variables(sql: &str) -> String {
 #[cfg(feature = "java")]
 /// validate-java CSV 输出头
 fn output_csv_validate_java_header() {
+    print!("\u{FEFF}");
     println!("file,directory,line,type,name,parent,parameters,return_type,sql,valid,error_count,warning_count,errors,warnings");
 }
 
@@ -6916,6 +6919,7 @@ fn cmd_validate_java(
 
 #[cfg(feature = "ibatis")]
 fn output_csv_xml_header() {
+    print!("\u{FEFF}");
     println!("file,directory,line,method,sql,variables,parameter_types,error,warning");
 }
 
@@ -6958,6 +6962,7 @@ fn output_csv_xml_rows(statements: &[ogsql_parser::ibatis::ParsedStatement], fil
 
 #[cfg(feature = "java")]
 fn output_csv_java_header() {
+    print!("\u{FEFF}");
     println!("file,directory,line,method,sql,variables,error,warning");
 }
 
