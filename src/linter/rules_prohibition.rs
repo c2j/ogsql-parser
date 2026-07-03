@@ -1,5 +1,5 @@
 use crate::ast::plpgsql::{PlBlock, PlStatement};
-use crate::ast::{Expr, InsertSource, SelectStatement, SelectTarget, Statement, StatementInfo};
+use crate::ast::{Expr, InsertSource, PackageItem, SelectStatement, SelectTarget, Statement, StatementInfo};
 use crate::linter::type_helpers::{
     build_column_type_map, classify_type_family, literal_type_family, resolve_column_type,
 };
@@ -662,19 +662,43 @@ fn check_r010(
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    let Statement::CreateFunction(func) = &curr_stmt.statement else { return };
-    let Some(block) = &func.block else { return };
-
-    let loc = stmt_location(curr_stmt);
-    let func_name = func.name.join(".");
-
     let tx_procedures = build_tx_procedure_set(stmts);
+    let loc = stmt_location(curr_stmt);
 
+    match &curr_stmt.statement {
+        Statement::CreateFunction(func) => {
+            if let Some(block) = &func.block {
+                r010_check_function(&func.name.join("."), block, loc, &tx_procedures, confidence, warnings);
+            }
+        }
+        Statement::CreatePackageBody(pkg_body) => {
+            let pkg_name = pkg_body.name.join(".");
+            for item in &pkg_body.items {
+                if let PackageItem::Function(func) = item {
+                    if let Some(block) = &func.block {
+                        let full_name = format!("{}.{}", pkg_name, func.name.join("."));
+                        r010_check_function(&full_name, block, loc, &tx_procedures, confidence, warnings);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn r010_check_function(
+    func_name: &str,
+    block: &PlBlock,
+    loc: crate::token::SourceLocation,
+    tx_procedures: &std::collections::HashSet<String>,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
     let mut has_dml = false;
     let mut has_tx = false;
     let mut called_tx_procs: Vec<String> = Vec::new();
 
-    scan_block_for_side_effects(block, &tx_procedures, &mut has_dml, &mut has_tx, &mut called_tx_procs);
+    scan_block_for_side_effects(block, tx_procedures, &mut has_dml, &mut has_tx, &mut called_tx_procs);
 
     if !has_tx && called_tx_procs.is_empty() {
         return;
@@ -717,15 +741,44 @@ fn check_r010(
 fn build_tx_procedure_set(stmts: &[StatementInfo]) -> std::collections::HashSet<String> {
     let mut set = std::collections::HashSet::new();
     for info in stmts {
-        let (name, block) = match &info.statement {
-            Statement::CreateProcedure(p) => (p.name.join("."), p.block.as_ref()),
-            Statement::CreateFunction(f) => (f.name.join("."), f.block.as_ref()),
-            _ => continue,
-        };
-        if let Some(block) = block {
-            if pl_block_has_tx_control(block) {
-                set.insert(name.to_lowercase());
+        match &info.statement {
+            Statement::CreateProcedure(p) => {
+                if let Some(block) = &p.block {
+                    if pl_block_has_tx_control(block) {
+                        set.insert(p.name.join(".").to_lowercase());
+                    }
+                }
             }
+            Statement::CreateFunction(f) => {
+                if let Some(block) = &f.block {
+                    if pl_block_has_tx_control(block) {
+                        set.insert(f.name.join(".").to_lowercase());
+                    }
+                }
+            }
+            Statement::CreatePackageBody(pkg_body) => {
+                let pkg_name = pkg_body.name.join(".").to_lowercase();
+                for item in &pkg_body.items {
+                    match item {
+                        PackageItem::Procedure(p) => {
+                            if let Some(block) = &p.block {
+                                if pl_block_has_tx_control(block) {
+                                    set.insert(format!("{}.{}", pkg_name, p.name.join(".").to_lowercase()));
+                                }
+                            }
+                        }
+                        PackageItem::Function(f) => {
+                            if let Some(block) = &f.block {
+                                if pl_block_has_tx_control(block) {
+                                    set.insert(format!("{}.{}", pkg_name, f.name.join(".").to_lowercase()));
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => continue,
         }
     }
     set
