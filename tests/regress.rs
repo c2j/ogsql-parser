@@ -273,3 +273,194 @@ fn all_regress_fixtures() {
 
     eprintln!("  [regress] {} fixture(s) passed", fixtures.len());
 }
+
+// ── iBatis XML fixture regression tests ────────────────────
+//
+// Scans `tests/regress/` for `.xml` fixture files.  Each file header
+// declares expected behaviour using XML comments:
+//
+// ```xml
+// <!-- description: Complex mapper with if + foreach -->
+// <!-- statements: 1 -->
+// <!-- namespace: com.example.BranchMapper -->
+// <!-- flat-contains: select, from t1, where -->
+// <!-- params: userCode, item -->
+// <!-- has-dynamic: true -->
+// <mapper>...</mapper>
+// ```
+//
+// - `<!-- description: -->`  (required) human-readable test name
+// - `<!-- statements: N -->` expected number of parsed statements
+// - `<!-- namespace: X -->`  expected mapper namespace
+// - `<!-- flat-contains: a, b, c -->` substrings that MUST appear in flat_sql
+// - `<!-- params: a, b -->`  parameter names that MUST be extracted
+// - `<!-- has-dynamic: true|false -->` whether dynamic SQL elements are present
+
+#[cfg(feature = "ibatis")]
+mod ibatis_regress {
+    use super::xml_fixture::discover_xml_fixtures;
+    use ogsql_parser::ibatis;
+
+    #[test]
+    fn all_regress_xml_fixtures() {
+        let fixtures = discover_xml_fixtures();
+        assert!(!fixtures.is_empty(), "未发现 XML regress fixture 文件 (tests/regress/**/*.xml)");
+
+        for f in &fixtures {
+            let label = format!("{} ({})", f.name, f.description);
+
+            let result = ibatis::parse_mapper_bytes(f.xml.as_bytes());
+            assert!(result.errors.is_empty(), "[{label}] XML 解析出错: {:?}", result.errors);
+
+            if let Some(expect_ns) = &f.namespace {
+                assert_eq!(&result.namespace, expect_ns, "[{label}] namespace 不匹配",);
+            }
+
+            assert_eq!(
+                result.statements.len(),
+                f.statements,
+                "[{label}] 期望 {} 个语句，实际 {} 个",
+                f.statements,
+                result.statements.len()
+            );
+
+            let combined_flat_sql: String = result.statements.iter().map(|s| s.flat_sql.as_str()).collect();
+            let combined_params: Vec<&str> =
+                result.statements.iter().flat_map(|s| s.parameters.iter().map(|p| p.name.as_str())).collect();
+            let any_dynamic = result.statements.iter().any(|s| s.has_dynamic_elements);
+
+            for needle in &f.flat_contains {
+                assert!(
+                    combined_flat_sql.to_lowercase().contains(&needle.to_lowercase()),
+                    "[{label}] flat_sql 不包含 '{}'，实际: {}",
+                    needle,
+                    combined_flat_sql
+                );
+            }
+
+            for expected_param in &f.params {
+                assert!(
+                    combined_params.contains(&expected_param.as_str()),
+                    "[{label}] 参数列表缺少 '{}'，实际: {:?}",
+                    expected_param,
+                    combined_params
+                );
+            }
+
+            assert_eq!(any_dynamic, f.has_dynamic, "[{label}] has_dynamic_elements 不匹配",);
+
+            eprintln!("  ✓ {label}");
+        }
+
+        eprintln!("  [regress-xml] {} fixture(s) passed", fixtures.len());
+    }
+}
+
+#[cfg(feature = "ibatis")]
+mod xml_fixture {
+    use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::PathBuf;
+
+    pub struct XmlFixture {
+        pub name: String,
+        pub description: String,
+        pub xml: String,
+        pub statements: usize,
+        pub namespace: Option<String>,
+        pub flat_contains: Vec<String>,
+        pub params: Vec<String>,
+        pub has_dynamic: bool,
+    }
+
+    pub fn discover_xml_fixtures() -> Vec<XmlFixture> {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("regress");
+        let mut results = Vec::new();
+        collect_xml_fixtures(&dir, "", &mut results);
+        results.sort_by(|a, b| a.name.cmp(&b.name));
+        results
+    }
+
+    fn collect_xml_fixtures(dir: &PathBuf, prefix: &str, results: &mut Vec<XmlFixture>) {
+        let entries = match fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let sub = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                let next = if prefix.is_empty() { sub.to_string() } else { format!("{prefix}/{sub}") };
+                collect_xml_fixtures(&path, &next, results);
+                continue;
+            }
+            if path.extension().and_then(|s| s.to_str()) != Some("xml") {
+                continue;
+            }
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown");
+            let name = if prefix.is_empty() { stem.to_string() } else { format!("{prefix}/{stem}") };
+            let raw =
+                fs::read_to_string(&path).unwrap_or_else(|e| panic!("无法读取 XML fixture '{}': {e}", path.display()));
+
+            let (meta, xml) = parse_xml_metadata(&raw);
+
+            let description = meta
+                .get("description")
+                .cloned()
+                .unwrap_or_else(|| panic!("[{name}] 缺少 '<!-- description: -->' 元数据"));
+            let statements: usize = meta
+                .get("statements")
+                .and_then(|s| s.trim().parse().ok())
+                .unwrap_or_else(|| panic!("[{name}] 缺少或无效的 '<!-- statements: N -->'"));
+            let namespace = meta.get("namespace").cloned();
+            let flat_contains = meta
+                .get("flat-contains")
+                .map(|s| s.split(',').map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect())
+                .unwrap_or_default();
+            let params = meta
+                .get("params")
+                .map(|s| s.split(',').map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect())
+                .unwrap_or_default();
+            let has_dynamic = meta.get("has-dynamic").map(|s| s.trim() == "true").unwrap_or(false);
+
+            results.push(XmlFixture {
+                name,
+                description,
+                xml,
+                statements,
+                namespace,
+                flat_contains,
+                params,
+                has_dynamic,
+            });
+        }
+    }
+
+    fn parse_xml_metadata(raw: &str) -> (BTreeMap<String, String>, String) {
+        let mut meta: BTreeMap<String, String> = BTreeMap::new();
+        let mut content_start = 0usize;
+
+        for line in raw.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                content_start += line.len() + 1;
+                continue;
+            }
+            if let Some(inner) = trimmed.strip_prefix("<!--").and_then(|s| s.strip_suffix("-->")) {
+                let inner = inner.trim();
+                if let Some((key, value)) = inner.split_once(':') {
+                    let k = key.trim().to_lowercase();
+                    let v = value.trim().to_string();
+                    meta.entry(k).and_modify(|e| e.push_str(&format!(",{v}"))).or_insert(v);
+                }
+                content_start += line.len() + 1;
+            } else {
+                break;
+            }
+        }
+
+        let xml = if content_start < raw.len() { raw[content_start..].trim().to_string() } else { String::new() };
+        (meta, xml)
+    }
+}

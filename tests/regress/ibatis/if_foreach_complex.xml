@@ -1,0 +1,21 @@
+<!-- description: Complex mapper with if + foreach, parameterType and resultType -->
+<!-- statements: 1 -->
+<!-- namespace: com.example.BranchMapper -->
+<!-- flat-contains: select amb.col1, from t1 amb, amb.stru_id = gbm.stru_id -->
+<!-- params: userCode, item -->
+<!-- has-dynamic: true -->
+<mapper namespace="com.example.BranchMapper">
+    <select id="getBranchLists" parameterType="java.lang.String" resultType="java.util.Map">
+        select amb.col1
+        from t1 amb,t2 gbm
+        where amb.stru_id = gbm.stru_id
+        <if test="userCode !=null and userCode !=''">
+            and gbm.user_code = #{userCode}
+        </if>
+        <if test="branchList !=null and branchList !=''">
+            <foreach collection="branchList" index="index" item="item" open="(" separator="," close=")">
+                and amb.stru_id = #{item}
+            </foreach>
+        </if>
+    </select>
+</mapper>
