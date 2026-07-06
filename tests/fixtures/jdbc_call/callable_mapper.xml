@@ -1,0 +1,45 @@
+<mapper namespace="com.example.ProcMapper">
+
+    <!-- 1) Standard CALL without JDBC escape — should parse as CALL statement -->
+    <select id="callProc" statementType="CALLABLE" resultType="java.util.Map">
+        call pkg_xxx.proc_yyy(
+            #{p_id,mode=IN,jdbcType=INTEGER},
+            #{p_name,mode=IN,jdbcType=VARCHAR}
+        )
+    </select>
+
+    <!-- 2) JDBC {call} escape syntax — core use case -->
+    <select id="callProcJdbc" statementType="CALLABLE" resultType="java.util.Map">
+        {call pkg_xxx.proc_yyy(
+            #{p_id,mode=IN,jdbcType=INTEGER},
+            #{p_name,mode=IN,jdbcType=VARCHAR}
+        )}
+    </select>
+
+    <!-- 3) JDBC {call} without parentheses on same line -->
+    <select id="callProcMultiline" statementType="CALLABLE">
+        {call pkg_xxx.proc_yyy
+            (
+                #{p_id,mode=IN,jdbcType=INTEGER},
+                #{p_name,mode=IN,jdbcType=VARCHAR}
+            )
+        }
+    </select>
+
+    <!-- 4) JDBC {? = call ...} with return value -->
+    <select id="callFuncWithReturn" statementType="CALLABLE" resultType="java.util.Map">
+        {? = call pkg_xxx.get_user(
+            #{p_id,mode=IN,jdbcType=INTEGER}
+        )}
+    </select>
+
+    <!-- 5) CALLABLE with dynamic procedure name via ${} -->
+    <select id="callDynamicProc" statementType="CALLABLE" databaseId="gauss">
+        {call ${procName}
+        <foreach collection="params" item="p" index="i" open="(" close=")" separator=",">
+            #{p,mode=IN,jdbcType=VARCHAR}
+        </foreach>
+        }
+    </select>
+
+</mapper>
