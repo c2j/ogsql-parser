@@ -1,3 +1,8 @@
+<!-- description: Multi-line select tag reports line 4 (end of tag) not line 2 (start of tag) -->
+<!-- statements: 1 -->
+<!-- namespace: t -->
+<!-- flat-contains: SELECT 1 -->
+<!-- has-dynamic: false -->
 <mapper namespace="t">
     <select id="q1"
             parameterType="x"

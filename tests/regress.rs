@@ -309,6 +309,15 @@ mod ibatis_regress {
         for f in &fixtures {
             let label = format!("{} ({})", f.name, f.description);
 
+            if f.expected_error {
+                // Error fixtures: only verify that XML parsing produces at least one error.
+                // Do not assert on namespace, statements, flat_sql, params, or dynamic elements.
+                let result = ibatis::parse_mapper_bytes(f.xml.as_bytes());
+                assert!(!result.errors.is_empty(), "[{label}] 期望有 XML 解析错误，但解析成功");
+                eprintln!("  ✓ {label} (expected error: {:?})", result.errors.iter().map(|e| e.to_string()).collect::<Vec<_>>());
+                continue;
+            }
+
             let result = ibatis::parse_mapper_bytes(f.xml.as_bytes());
             assert!(result.errors.is_empty(), "[{label}] XML 解析出错: {:?}", result.errors);
 
@@ -371,6 +380,7 @@ mod xml_fixture {
         pub flat_contains: Vec<String>,
         pub params: Vec<String>,
         pub has_dynamic: bool,
+        pub expected_error: bool,
     }
 
     pub fn discover_xml_fixtures() -> Vec<XmlFixture> {
@@ -403,16 +413,25 @@ mod xml_fixture {
             let raw =
                 fs::read_to_string(&path).unwrap_or_else(|e| panic!("无法读取 XML fixture '{}': {e}", path.display()));
 
-            let (meta, xml) = parse_xml_metadata(&raw);
+            // Strip UTF-8 BOM for metadata parsing; preserve it in xml content for error fixtures.
+            let has_bom = raw.starts_with('\u{FEFF}');
+            let meta_raw = if has_bom { &raw[3..] } else { raw.as_str() };
+
+            let (meta, xml) = parse_xml_metadata(meta_raw);
+            let xml = if has_bom { format!("\u{FEFF}{xml}") } else { xml };
 
             let description = meta
                 .get("description")
                 .cloned()
                 .unwrap_or_else(|| panic!("[{name}] 缺少 '<!-- description: -->' 元数据"));
-            let statements: usize = meta
-                .get("statements")
-                .and_then(|s| s.trim().parse().ok())
-                .unwrap_or_else(|| panic!("[{name}] 缺少或无效的 '<!-- statements: N -->'"));
+            let expected_error = meta.get("expected-error").map(|s| s.trim() == "true").unwrap_or(false);
+            let statements: usize = if expected_error {
+                meta.get("statements").and_then(|s| s.trim().parse().ok()).unwrap_or(0)
+            } else {
+                meta.get("statements")
+                    .and_then(|s| s.trim().parse().ok())
+                    .unwrap_or_else(|| panic!("[{name}] 缺少或无效的 '<!-- statements: N -->'"))
+            };
             let namespace = meta.get("namespace").cloned();
             let flat_contains = meta
                 .get("flat-contains")
@@ -433,6 +452,7 @@ mod xml_fixture {
                 flat_contains,
                 params,
                 has_dynamic,
+                expected_error,
             });
         }
     }
