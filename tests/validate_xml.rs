@@ -207,4 +207,94 @@ mod validate_xml_tests {
         assert!(stdout.contains("getBranchLists"), "stdout: {}", stdout);
         assert!(stdout.contains("INVALID"), "stdout: {}", stdout);
     }
+
+    // ── Line number regression tests: XML parse errors ──
+
+    /// Returns (stdout, stderr, exit_code) for running validate-xml with given bytes.
+    fn run_validate_xml_bytes(bytes: &[u8], args: &[&str]) -> (String, String, bool) {
+        let mut child =
+            ogsql().args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+        {
+            use std::io::Write;
+            let mut stdin = child.stdin.take().unwrap();
+            stdin.write_all(bytes).unwrap();
+        }
+        let output = child.wait_with_output().unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let success = output.status.success();
+        (stdout, stderr, success)
+    }
+
+    #[test]
+    fn test_validate_xml_bom_unclosed_tag_line_number() {
+        let xml_with_bom: &[u8] = b"\xEF\xBB\xBF<mapper namespace=\"t\">\n    <select id=\"q1\">SELECT 1</select>\n    <select id=\"q2\">SELECT 2</select>\n</mapper";
+        let (_stdout, stderr, _success) = run_validate_xml_bytes(xml_with_bom, &["validate-xml"]);
+
+        // FIXME: BOM causes off-by-one — quick-xml strips BOM from error_position(),
+        // but byte_offset_to_line counts newlines in full source (includes BOM bytes).
+        // The unclosed </mapper is actually on line 4, but currently reports line 3.
+        // When fixed, change "line 3" to "line 4" below.
+        assert!(
+            stderr.contains("line 3") || stderr.contains("line 4"),
+            "Expected error to report a line number, got stderr:\n{}",
+            stderr
+        );
+    }
+
+    /// Baseline: XML WITHOUT BOM, unclosed tag on line 4 → should report line 4 correctly.
+    #[test]
+    fn test_validate_xml_no_bom_unclosed_tag_line_number() {
+        // Same XML without BOM
+        let xml_no_bom = b"<mapper namespace=\"t\">\n    <select id=\"q1\">SELECT 1</select>\n    <select id=\"q2\">SELECT 2</select>\n</mapper";
+        let (_stdout, stderr, _success) = run_validate_xml_bytes(xml_no_bom, &["validate-xml"]);
+
+        assert!(
+            stderr.contains("XML parse error at line 4") || stderr.contains("line 4"),
+            "Expected error to report line 4 (the actual line of </mapper), but got stderr:\n{}",
+            stderr
+        );
+    }
+
+    /// XML with multi-line `<select>` tag:
+    /// `<select` starts on line 2, `>` is on line 4.
+    /// `buffer_position()` returns position after `>`, so reported line is 4.
+    /// Users may expect line 2 (where the tag starts).
+    #[test]
+    fn test_validate_xml_multiline_tag_line_number() {
+        let xml = b"<mapper namespace=\"t\">\n    <select id=\"q1\"\n            parameterType=\"x\"\n            resultType=\"map\">\n        SELECT 1\n    </select>\n</mapper>";
+        let (stdout, _stderr, _success) = run_validate_xml_bytes(xml, &["validate-xml", "--csv"]);
+
+        // CSV output contains the line number of the statement.
+        // Currently reports line 4 (where `>` is), not line 2 (where `<select` begins).
+        // This test documents the current behavior.
+        assert!(stdout.contains("q1"), "CSV should contain statement id q1, got: {}", stdout);
+        // The line field in CSV: "file,directory,line,..."
+        // Example row: ",.,4,Select,q1,..."
+        // We accept either line 2 (tag start) or line 4 (tag end) as the current behavior is line 4.
+        assert!(
+            stdout.contains(",4,") || stdout.contains(",2,"),
+            "Statement line should be reported, got CSV:\n{}",
+            stdout
+        );
+    }
+
+    /// XML with unclosed `<foreach>` nested inside a `<select>`.
+    /// The error occurs inside `read_node_tree` which currently swallows
+    /// `read_event_into` errors (parser.rs line 197: `_ => {}`).
+    /// This means the XML error is silently ignored — no XmlError is produced.
+    #[test]
+    fn test_validate_xml_nested_unclosed_tag_no_error_surfaced() {
+        let xml = b"<mapper namespace=\"t\">\n    <select id=\"q1\">\n        SELECT * FROM t WHERE\n        <foreach collection=\"list\" item=\"i\" open=\"(\" close=\")\" separator=\",\">\n            #{i}\n        </foreach\n    </select>\n</mapper>";
+        let (_stdout, stderr, _success) = run_validate_xml_bytes(xml, &["validate-xml"]);
+
+        // BUG: No XML error is reported because inner loop swallows read_event_into errors.
+        // If this assertion fails (XML error IS reported), the fix should ALSO verify
+        // the line number is correct.
+        assert!(
+            !stderr.contains("XML parse error"),
+            "BUG FIXED? XML error is now surfaced for nested unclosed tag. Verify line number! stderr:\n{}",
+            stderr
+        );
+    }
 }

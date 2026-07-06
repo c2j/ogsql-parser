@@ -1,0 +1,4 @@
+﻿<mapper namespace="t">
+    <select id="q1">SELECT 1</select>
+    <select id="q2">SELECT 2</select>
+</mapper

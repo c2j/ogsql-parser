@@ -1,0 +1,8 @@
+<mapper namespace="t">
+    <select id="q1">
+        SELECT * FROM t WHERE
+        <foreach collection="list" item="i" open="(" close=")" separator=",">
+            #{i}
+        </foreach
+    </select>
+</mapper>
