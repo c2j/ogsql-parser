@@ -156,7 +156,11 @@ pub struct ParsedStatement {
     pub flat_sql: String,
     pub parameters: Vec<ParamMeta>,
     pub has_dynamic_elements: bool,
+    /// XML line where the opening tag's `>` is located.
     pub line: usize,
+    /// XML line where the first non-whitespace body content starts (after trimming).
+    /// Used to remap SQL parse error line numbers to XML file line numbers.
+    pub body_start_line: usize,
     pub parse_result: Option<(Vec<crate::ast::StatementInfo>, Vec<crate::parser::ParserError>)>,
     pub database_id: Option<String>,
     pub statement_type: Option<String>,
@@ -261,6 +265,8 @@ impl StructuredStatement {
         let flat_sql = flatten::flatten_sql(&self.body);
         let parse_result =
             if !flat_sql.trim().is_empty() { Some(crate::parser::Parser::parse_sql(&flat_sql)) } else { None };
+        let leading_newlines = flat_sql.chars().take_while(|c| c.is_whitespace()).filter(|c| *c == '\n').count();
+        let body_start_line = self.location.line + leading_newlines;
         ParsedStatement {
             id: self.id.clone(),
             kind: self.kind,
@@ -270,6 +276,7 @@ impl StructuredStatement {
             parameters: self.parameters.clone(),
             has_dynamic_elements: self.has_dynamic_elements,
             line: self.location.line,
+            body_start_line,
             parse_result,
             database_id: self.database_id.clone(),
             statement_type: self.statement_type.clone(),
