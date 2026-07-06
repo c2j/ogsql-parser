@@ -253,8 +253,13 @@ fn parse_mapper_bytes_internal(
         }
 
         let has_dynamic = has_dynamic_elements(&stmt.body);
+        let parse_sql = if stmt.statement_type.as_deref() == Some("CALLABLE") {
+            crate::translate_jdbc_call(&flat_sql)
+        } else {
+            flat_sql.clone()
+        };
         let parse_result =
-            if !flat_sql.trim().is_empty() { Some(crate::parser::Parser::parse_sql(&flat_sql)) } else { None };
+            if !flat_sql.trim().is_empty() { Some(crate::parser::Parser::parse_sql(&parse_sql)) } else { None };
 
         statements.push(ParsedStatement {
             id: stmt.id.clone(),
