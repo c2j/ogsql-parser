@@ -109,6 +109,46 @@ pub use token::tokenizer::{Tokenizer, TokenizerError};
 pub use token::{Keyword, SourceLocation, Span, Token, TokenWithSpan};
 pub use token_formatter::{CommaStyle, FormatConfig, KeywordCase};
 
+/// Translate JDBC `{call ...}` / `{? = call ...}` escape syntax to native `CALL` SQL.
+///
+/// The core SQL parser only understands bare `CALL pkg.proc(args)`. JDBC escape
+/// wrappers (`{call ...}`, `{? = call ...}`) must be stripped before parsing.
+///
+/// Idempotent — if the input does not start with a JDBC escape pattern, it is
+/// returned unchanged.
+pub fn translate_jdbc_call(sql: &str) -> String {
+    let trimmed = sql.trim_start();
+    let upper = trimmed.to_uppercase();
+
+    // {? = call proc(args)}  → CALL proc(args)
+    if upper.starts_with("{?") {
+        let after_brace = &trimmed[2..];
+        let after_eq = after_brace.trim_start();
+        let after_eq = if let Some(stripped) = after_eq.strip_prefix('=') {
+            stripped
+        } else if after_eq.len() > 2 && after_eq[..2].eq_ignore_ascii_case("= ") {
+            after_eq[2..].trim_start()
+        } else {
+            after_eq
+        };
+        let after_eq = after_eq.trim_start();
+        if after_eq.len() >= 4 && after_eq[..4].eq_ignore_ascii_case("call") {
+            let body = &after_eq[4..].trim_start();
+            let body = body.strip_suffix("}").unwrap_or(body);
+            return format!("CALL {}", body.trim());
+        }
+    }
+
+    // {call proc(args)}  → CALL proc(args)
+    if upper.starts_with("{CALL") {
+        let body = &trimmed[5..].trim_start();
+        let body = body.strip_suffix("}").unwrap_or(body);
+        return format!("CALL {}", body.trim());
+    }
+
+    sql.to_string()
+}
+
 #[cfg(feature = "ibatis")]
 pub mod ibatis;
 
