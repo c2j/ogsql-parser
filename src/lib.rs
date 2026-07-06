@@ -153,10 +153,13 @@ pub fn translate_jdbc_call(sql: &str) -> String {
 }
 
 fn strip_trailing_brace(body: &str) -> String {
-    if let Some(pos) = body.rfind('}') {
-        format!("CALL {}", body[..pos].trim())
+    let inner = if let Some(pos) = body.rfind('}') { body[..pos].trim() } else { body.trim() };
+    // If the procedure call has no arguments (no parentheses), add empty ()
+    // e.g. {call pkg.proc} → CALL pkg.proc()
+    if inner.contains('(') {
+        format!("CALL {}", inner)
     } else {
-        format!("CALL {}", body.trim())
+        format!("CALL {}()", inner)
     }
 }
 
