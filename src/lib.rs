@@ -114,39 +114,50 @@ pub use token_formatter::{CommaStyle, FormatConfig, KeywordCase};
 /// The core SQL parser only understands bare `CALL pkg.proc(args)`. JDBC escape
 /// wrappers (`{call ...}`, `{? = call ...}`) must be stripped before parsing.
 ///
+/// Tolerates whitespace/line-breaks between tokens (e.g. `{\ncall proc()}`,
+/// `{?\n= call proc()}`), which can appear in iBatis/MyBatis XML mapper text.
+///
 /// Idempotent — if the input does not start with a JDBC escape pattern, it is
 /// returned unchanged.
 pub fn translate_jdbc_call(sql: &str) -> String {
     let trimmed = sql.trim_start();
-    let upper = trimmed.to_uppercase();
+
+    if !trimmed.starts_with('{') {
+        return sql.to_string();
+    }
+    let after_brace = &trimmed[1..];
 
     // {? = call proc(args)}  → CALL proc(args)
-    if upper.starts_with("{?") {
-        let after_brace = &trimmed[2..];
-        let after_eq = after_brace.trim_start();
-        let after_eq = if let Some(stripped) = after_eq.strip_prefix('=') {
-            stripped
-        } else if after_eq.len() > 2 && after_eq[..2].eq_ignore_ascii_case("= ") {
-            after_eq[2..].trim_start()
+    if let Some(rest) = after_brace.trim_start().strip_prefix('?') {
+        let rest = rest.trim_start();
+        let after_call = if let Some(after_eq) = rest.strip_prefix('=') {
+            after_eq.trim_start()
         } else {
-            after_eq
+            return sql.to_string();
         };
-        let after_eq = after_eq.trim_start();
-        if after_eq.len() >= 4 && after_eq[..4].eq_ignore_ascii_case("call") {
-            let body = &after_eq[4..].trim_start();
-            let body = body.strip_suffix("}").unwrap_or(body);
-            return format!("CALL {}", body.trim());
+        if after_call.len() >= 4 && after_call[..4].eq_ignore_ascii_case("call") {
+            let body = &after_call[4..].trim_start();
+            return strip_trailing_brace(body);
         }
+        return sql.to_string();
     }
 
     // {call proc(args)}  → CALL proc(args)
-    if upper.starts_with("{CALL") {
-        let body = &trimmed[5..].trim_start();
-        let body = body.strip_suffix("}").unwrap_or(body);
-        return format!("CALL {}", body.trim());
+    let after_brace = after_brace.trim_start();
+    if after_brace.len() >= 4 && after_brace[..4].eq_ignore_ascii_case("call") {
+        let body = &after_brace[4..].trim_start();
+        return strip_trailing_brace(body);
     }
 
     sql.to_string()
+}
+
+fn strip_trailing_brace(body: &str) -> String {
+    if let Some(pos) = body.rfind('}') {
+        format!("CALL {}", body[..pos].trim())
+    } else {
+        format!("CALL {}", body.trim())
+    }
 }
 
 #[cfg(feature = "ibatis")]

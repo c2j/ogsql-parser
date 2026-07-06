@@ -1,0 +1,14 @@
+<!-- description: JDBC {call} with no param -->
+<!-- statements: 1 -->
+<!-- namespace: com.example.ProcMapper -->
+<!-- flat-contains: call pkg_xxx.proc_yyy -->
+<!-- has-dynamic: false -->
+<mapper namespace="com.example.ProcMapper">
+    <select
+        id="callProcJdbc"
+        statementType="CALLABLE"
+        resultType="java.util.Map"
+    >
+        {call pkg_xxx.proc_yyy}
+    </select>
+</mapper>
