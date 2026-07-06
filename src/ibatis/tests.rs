@@ -2189,3 +2189,250 @@ fn test_foreach_values_with_text_comma_no_duplication() {
         sql
     );
 }
+
+// ── Regression: if + foreach in a single select (branchList XML mapper) ──
+
+/// XML mapper with two `<if>` conditions, one containing a `<foreach>`,
+/// and `parameterType` / `resultType` attributes on `<select>`.
+fn branch_list_mapper_xml() -> &'static [u8] {
+    br#"<mapper namespace="com.example.BranchMapper">
+    <select id="getBranchLists" parameterType="java.lang.String" resultType="java.util.Map">
+        select amb.col1
+        from t1 amb,t2 gbm
+        where amb.stru_id = gbm.stru_id
+        <if test="userCode !=null and userCode !=''">
+            and gbm.user_code = #{userCode}
+        </if>
+        <if test="branchList !=null and branchList !=''">
+            <foreach collection="branchList" index="index" item="item" open="(" separator="," close=")">
+                and amb.stru_id = #{item}
+            </foreach>
+        </if>
+    </select>
+</mapper>"#
+}
+
+#[test]
+fn test_regress_if_foreach_select_flat() {
+    let result = super::parse_mapper_bytes(branch_list_mapper_xml());
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert_eq!(result.namespace, "com.example.BranchMapper");
+    assert_eq!(result.statements.len(), 1);
+
+    let stmt = &result.statements[0];
+    assert_eq!(stmt.id, "getBranchLists");
+    assert_eq!(stmt.kind, StatementKind::Select);
+    assert_eq!(stmt.parameter_type.as_deref(), Some("java.lang.String"));
+    assert_eq!(stmt.result_type.as_deref(), Some("java.util.Map"));
+    assert!(stmt.has_dynamic_elements);
+
+    // Flat SQL should contain all key elements
+    let sql = &stmt.flat_sql;
+    assert!(sql.contains("select amb.col1"), "flat_sql: {}", sql);
+    assert!(sql.contains("from t1 amb,t2 gbm"), "flat_sql: {}", sql);
+    assert!(sql.contains("amb.stru_id = gbm.stru_id"), "flat_sql: {}", sql);
+    // If#1 (userCode) — included in flatten ("most complete" strategy)
+    // Placeholder format: __XML_PARAM_[TYPE_]name__ (TYPE present when java feature infers JDBC types)
+    assert!(sql.contains("gbm.user_code = __XML_PARAM_"), "flat_sql: {}", sql);
+    assert!(sql.contains("userCode__"), "flat_sql: {}", sql);
+    // ForEach body wraps content with open/close, preserving internal whitespace
+    assert!(sql.contains("item__"), "flat_sql should contain the foreach body's parameter: {}", sql);
+    assert!(sql.contains('('), "flat_sql should contain foreach open '(': {}", sql);
+    assert!(sql.contains(')'), "flat_sql should contain foreach close ')': {}", sql);
+
+    // Parameters: userCode and item appear as #{param} in the SQL.
+    // branchList appears only as <if test="..."> and foreach collection attribute;
+    // it is NOT a #{param} / ${param} placeholder, so it does NOT appear in parameters.
+    assert_eq!(stmt.parameters.len(), 2, "params: {:?}", stmt.parameters);
+    let param_names: Vec<&str> = stmt.parameters.iter().map(|p| p.name.as_str()).collect();
+    assert!(param_names.contains(&"userCode"), "missing userCode in params: {:?}", param_names);
+    assert!(param_names.contains(&"item"), "missing item in params: {:?}", param_names);
+
+    // Parse result: the flattened SQL contains `(and ...)` from foreach open="(",
+    // which is syntactically invalid. This is expected — the flatten represents
+    // a single-iteration snapshot of the dynamic foreach at runtime.
+    assert!(stmt.parse_result.is_some(), "expected parse result");
+}
+
+#[test]
+fn test_regress_if_foreach_select_structured() {
+    let result = super::parse_mapper_bytes_structured(branch_list_mapper_xml());
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert_eq!(result.statements.len(), 1);
+
+    let stmt = &result.statements[0];
+    assert_eq!(stmt.id, "getBranchLists");
+    assert_eq!(stmt.kind, StatementKind::Select);
+    assert!(stmt.has_dynamic_elements);
+    // Only #{userCode} and #{item} are actual parameters.
+    // branchList is a collection name in foreach/test attributes, not a #{param}.
+    assert_eq!(stmt.parameters.len(), 2, "params: {:?}", stmt.parameters);
+
+    let param_names: Vec<&str> = stmt.parameters.iter().map(|p| p.name.as_str()).collect();
+    assert!(param_names.contains(&"userCode"));
+    assert!(param_names.contains(&"item"));
+
+    // Structured AST: find If nodes
+    let if_nodes: Vec<&SqlNode> = find_nodes_of_type(&stmt.body, "if");
+    assert_eq!(if_nodes.len(), 2, "expected exactly 2 If nodes, got {}", if_nodes.len());
+
+    // First if: userCode
+    if let SqlNode::If { test, children: if_children, .. } = if_nodes[0] {
+        assert_eq!(test, "userCode !=null and userCode !=''");
+        let user_code_params: Vec<&SqlNode> =
+            if_children.iter().filter(|n| matches!(n, SqlNode::Parameter { .. })).collect();
+        assert_eq!(user_code_params.len(), 1);
+        if let SqlNode::Parameter { name, .. } = user_code_params[0] {
+            assert_eq!(name, "userCode");
+        } else {
+            panic!("expected Parameter node for userCode");
+        }
+    } else {
+        panic!("expected If node for userCode");
+    }
+
+    // Second if: branchList — should contain a ForEach
+    if let SqlNode::If { test, children: if_children, .. } = if_nodes[1] {
+        assert_eq!(test, "branchList !=null and branchList !=''");
+        let foreach_nodes: Vec<&SqlNode> =
+            if_children.iter().filter(|n| matches!(n, SqlNode::ForEach { .. })).collect();
+        assert_eq!(foreach_nodes.len(), 1, "second If should contain one ForEach");
+
+        if let SqlNode::ForEach { collection, item, index, open, separator, close, children, .. } = foreach_nodes[0] {
+            assert_eq!(collection, "branchList");
+            assert_eq!(item, "item");
+            assert_eq!(index.as_deref(), Some("index"));
+            assert_eq!(open.as_deref(), Some("("));
+            assert_eq!(separator.as_deref(), Some(","));
+            assert_eq!(close.as_deref(), Some(")"));
+
+            let foreach_params: Vec<&SqlNode> =
+                children.iter().filter(|n| matches!(n, SqlNode::Parameter { .. })).collect();
+            assert_eq!(foreach_params.len(), 1);
+            if let SqlNode::Parameter { name, .. } = foreach_params[0] {
+                assert_eq!(name, "item");
+            } else {
+                panic!("expected Parameter node for item");
+            }
+        } else {
+            panic!("expected ForEach node inside second If");
+        }
+    } else {
+        panic!("expected If node for branchList");
+    }
+}
+
+#[test]
+fn test_regress_if_foreach_select_expand() {
+    let result = super::parse_mapper_bytes_structured(branch_list_mapper_xml());
+    assert!(result.errors.is_empty());
+
+    let stmt = &result.statements[0];
+    // Two independent Ifs → 4 combinations (Both strategy).
+    // Foreach inside If#2 keeps only the first foreach size because
+    // expand_if uses inc_vec.remove(0) after expanding children.
+    let config =
+        ExpandConfig { if_strategy: IfExpandStrategy::Both, foreach_sizes: vec![1, 2], ..default_expand_config() };
+    let variants = stmt.expand_variants(&config);
+    assert_eq!(variants.len(), 4, "expected 4 variants, got {}: {:?}", variants.len(), variants);
+
+    let has_if = |v: &ExpandedVariant, test: &str, included: bool| {
+        v.branch_path
+            .iter()
+            .any(|s| matches!(s, BranchStep::If { test: t, included: i } if t == test && *i == included))
+    };
+
+    // All variants carry the base SQL ("select amb.col1...") since expand_if
+    // now preserves the parent sql_buffer across branches.
+
+    // (if1=true, if2=true): both conditions + foreach body present
+    let both = variants
+        .iter()
+        .find(|v| {
+            has_if(v, "userCode !=null and userCode !=''", true)
+                && has_if(v, "branchList !=null and branchList !=''", true)
+        })
+        .expect("should have both-included variant");
+    assert!(both.sql.contains("select amb.col1"), "both: {}", both.sql);
+    assert!(both.sql.contains("userCode__"), "both: {}", both.sql);
+    assert!(both.sql.contains("item__"), "both: {}", both.sql);
+
+    // (if1=true, if2=false): userCode present, no foreach
+    let if1_only = variants
+        .iter()
+        .find(|v| {
+            has_if(v, "userCode !=null and userCode !=''", true)
+                && has_if(v, "branchList !=null and branchList !=''", false)
+        })
+        .expect("should have if1-only variant");
+    assert!(if1_only.sql.contains("select amb.col1"), "if1_only: {}", if1_only.sql);
+    assert!(if1_only.sql.contains("userCode__"), "if1_only: {}", if1_only.sql);
+    assert!(!if1_only.sql.contains("item__"), "if1_only should not have foreach: {}", if1_only.sql);
+
+    // (if1=false, if2=true): foreach body present, no userCode
+    let if2_only = variants
+        .iter()
+        .find(|v| {
+            has_if(v, "userCode !=null and userCode !=''", false)
+                && has_if(v, "branchList !=null and branchList !=''", true)
+        })
+        .expect("should have if2-only variant");
+    assert!(if2_only.sql.contains("select amb.col1"), "if2_only: {}", if2_only.sql);
+    assert!(if2_only.sql.contains("item__"), "if2_only: {}", if2_only.sql);
+    assert!(!if2_only.sql.contains("userCode__"), "if2_only should not have userCode: {}", if2_only.sql);
+
+    // (if1=false, if2=false): base SQL only, no conditions
+    let neither = variants
+        .iter()
+        .find(|v| {
+            has_if(v, "userCode !=null and userCode !=''", false)
+                && has_if(v, "branchList !=null and branchList !=''", false)
+        })
+        .expect("should have neither variant");
+    assert!(neither.sql.contains("select amb.col1"), "neither: {}", neither.sql);
+    assert!(!neither.sql.contains("item__"), "neither: {}", neither.sql);
+    assert!(!neither.sql.contains("userCode__"), "neither: {}", neither.sql);
+}
+
+/// Collects all nodes of a given type from the SqlNode tree.
+fn find_nodes_of_type<'a>(node: &'a SqlNode, type_name: &str) -> Vec<&'a SqlNode> {
+    let is_match = match type_name {
+        "if" => matches!(node, SqlNode::If { .. }),
+        "choose" => matches!(node, SqlNode::Choose { .. }),
+        "foreach" => matches!(node, SqlNode::ForEach { .. }),
+        "where" => matches!(node, SqlNode::Where { .. }),
+        "set" => matches!(node, SqlNode::Set { .. }),
+        "trim" => matches!(node, SqlNode::Trim { .. }),
+        "bind" => matches!(node, SqlNode::Bind { .. }),
+        "rawexpr" => matches!(node, SqlNode::RawExpr { .. }),
+        "parameter" => matches!(node, SqlNode::Parameter { .. }),
+        "include" => matches!(node, SqlNode::Include { .. }),
+        _ => false,
+    };
+
+    let mut results = Vec::new();
+    if is_match {
+        results.push(node);
+    }
+    match node {
+        SqlNode::Sequence { children }
+        | SqlNode::If { children, .. }
+        | SqlNode::Where { children }
+        | SqlNode::Set { children }
+        | SqlNode::Trim { children, .. }
+        | SqlNode::ForEach { children, .. } => {
+            for child in children {
+                results.extend(find_nodes_of_type(child, type_name));
+            }
+        }
+        SqlNode::Choose { branches } => {
+            for (_, ch) in branches {
+                for child in ch {
+                    results.extend(find_nodes_of_type(child, type_name));
+                }
+            }
+        }
+        _ => {}
+    }
+    results
+}

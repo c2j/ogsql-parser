@@ -135,4 +135,76 @@ mod validate_xml_tests {
         assert!(stdout.contains("VALID"), "Full callable fixture should validate. Got: {}", stdout);
         assert!(success);
     }
+
+    // ── Complex if + foreach mapper ──
+
+    #[test]
+    fn test_validate_xml_complex_if_foreach() {
+        let xml = r#"<mapper namespace="com.example.BranchMapper">
+    <select id="getBranchLists" parameterType="java.lang.String" resultType="java.util.Map">
+        select amb.col1
+        from t1 amb,t2 gbm
+        where amb.stru_id = gbm.stru_id
+        <if test="userCode !=null and userCode !=''">
+            and gbm.user_code = #{userCode}
+        </if>
+        <if test="branchList !=null and branchList !=''">
+            <foreach collection="branchList" index="index" item="item" open="(" separator="," close=")">
+                and amb.stru_id = #{item}
+            </foreach>
+        </if>
+    </select>
+</mapper>"#;
+        let (stdout, _success) = run_validate_xml(xml, &["validate-xml"]);
+        assert!(stdout.contains("getBranchLists"), "stdout: {}", stdout);
+        assert!(
+            stdout.contains("INVALID"),
+            "validate-xml should report INVALID due to foreach open='(' flatten, stdout: {}",
+            stdout
+        );
+    }
+
+    #[test]
+    fn test_validate_xml_complex_if_foreach_csv() {
+        let xml = r#"<mapper namespace="com.example.BranchMapper">
+    <select id="getBranchLists" parameterType="java.lang.String" resultType="java.util.Map">
+        select amb.col1
+        from t1 amb,t2 gbm
+        where amb.stru_id = gbm.stru_id
+        <if test="userCode !=null and userCode !=''">
+            and gbm.user_code = #{userCode}
+        </if>
+        <if test="branchList !=null and branchList !=''">
+            <foreach collection="branchList" index="index" item="item" open="(" separator="," close=")">
+                and amb.stru_id = #{item}
+            </foreach>
+        </if>
+    </select>
+</mapper>"#;
+        let (stdout, _success) = run_validate_xml(xml, &["validate-xml", "--csv"]);
+        assert!(stdout.contains("getBranchLists"), "CSV should contain statement id, got: {}", stdout);
+        assert!(stdout.contains("Select"), "CSV should contain statement kind, got: {}", stdout);
+    }
+
+    #[test]
+    fn test_validate_xml_complex_if_foreach_with_lint() {
+        let xml = r#"<mapper namespace="com.example.BranchMapper">
+    <select id="getBranchLists" parameterType="java.lang.String" resultType="java.util.Map">
+        select amb.col1
+        from t1 amb,t2 gbm
+        where amb.stru_id = gbm.stru_id
+        <if test="userCode !=null and userCode !=''">
+            and gbm.user_code = #{userCode}
+        </if>
+        <if test="branchList !=null and branchList !=''">
+            <foreach collection="branchList" index="index" item="item" open="(" separator="," close=")">
+                and amb.stru_id = #{item}
+            </foreach>
+        </if>
+    </select>
+</mapper>"#;
+        let (stdout, _success) = run_validate_xml(xml, &["validate-xml", "--lint"]);
+        assert!(stdout.contains("getBranchLists"), "stdout: {}", stdout);
+        assert!(stdout.contains("INVALID"), "stdout: {}", stdout);
+    }
 }

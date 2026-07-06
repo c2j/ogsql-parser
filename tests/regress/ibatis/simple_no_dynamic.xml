@@ -1,0 +1,11 @@
+<!-- description: Baseline mapper with no dynamic elements -->
+<!-- statements: 1 -->
+<!-- namespace: test -->
+<!-- flat-contains: SELECT 1 -->
+<!-- params: -->
+<!-- has-dynamic: false -->
+<mapper namespace="test">
+    <select id="simple">
+        SELECT 1
+    </select>
+</mapper>

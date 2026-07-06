@@ -1,0 +1,15 @@
+<!-- description: Foreach in IN clause producing valid flattened SQL -->
+<!-- statements: 1 -->
+<!-- namespace: test -->
+<!-- flat-contains: SELECT, FROM orders, WHERE, IN -->
+<!-- params: id -->
+<!-- has-dynamic: true -->
+<mapper namespace="test">
+    <select id="findByIds">
+        SELECT * FROM orders
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+</mapper>

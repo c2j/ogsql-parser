@@ -100,50 +100,71 @@ fn expand_node(node: &SqlNode, variants: &mut Vec<ExpansionState>, depth: usize,
             expand_choose(branches, variants, depth, config);
         }
         SqlNode::Where { children } => {
-            let mut sub_variants = variants
-                .drain(..)
-                .map(|v| ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params })
-                .collect::<Vec<_>>();
-            for child in children {
-                expand_node(child, &mut sub_variants, depth + 1, config);
-            }
             let prefix_overrides = Some("AND |OR ");
-            for sub in sub_variants {
-                let trimmed = apply_trim(&sub.sql_buffer, Some("WHERE"), None, prefix_overrides, None);
-                variants.push(ExpansionState { sql_buffer: trimmed, branch_path: sub.branch_path, params: sub.params });
+            let mut new_variants = Vec::new();
+            for v in variants.drain(..) {
+                let parent_sql = v.sql_buffer;
+                let mut sub_vec =
+                    vec![ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params }];
+                for child in children {
+                    expand_node(child, &mut sub_vec, depth + 1, config);
+                }
+                for sub in sub_vec {
+                    let trimmed = apply_trim(&sub.sql_buffer, Some("WHERE"), None, prefix_overrides, None);
+                    new_variants.push(ExpansionState {
+                        sql_buffer: format!("{}{}", parent_sql, trimmed),
+                        branch_path: sub.branch_path,
+                        params: sub.params,
+                    });
+                }
             }
+            *variants = new_variants;
         }
         SqlNode::Set { children } => {
-            let mut sub_variants = variants
-                .drain(..)
-                .map(|v| ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params })
-                .collect::<Vec<_>>();
-            for child in children {
-                expand_node(child, &mut sub_variants, depth + 1, config);
+            let mut new_variants = Vec::new();
+            for v in variants.drain(..) {
+                let parent_sql = v.sql_buffer;
+                let mut sub_vec =
+                    vec![ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params }];
+                for child in children {
+                    expand_node(child, &mut sub_vec, depth + 1, config);
+                }
+                for sub in sub_vec {
+                    let trimmed = apply_trim(&sub.sql_buffer, Some("SET"), None, None, Some(","));
+                    new_variants.push(ExpansionState {
+                        sql_buffer: format!("{}{}", parent_sql, trimmed),
+                        branch_path: sub.branch_path,
+                        params: sub.params,
+                    });
+                }
             }
-            for sub in sub_variants {
-                let trimmed = apply_trim(&sub.sql_buffer, Some("SET"), None, None, Some(","));
-                variants.push(ExpansionState { sql_buffer: trimmed, branch_path: sub.branch_path, params: sub.params });
-            }
+            *variants = new_variants;
         }
         SqlNode::Trim { prefix, suffix, prefix_overrides, suffix_overrides, children } => {
-            let mut sub_variants = variants
-                .drain(..)
-                .map(|v| ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params })
-                .collect::<Vec<_>>();
-            for child in children {
-                expand_node(child, &mut sub_variants, depth + 1, config);
+            let mut new_variants = Vec::new();
+            for v in variants.drain(..) {
+                let parent_sql = v.sql_buffer;
+                let mut sub_vec =
+                    vec![ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params }];
+                for child in children {
+                    expand_node(child, &mut sub_vec, depth + 1, config);
+                }
+                for sub in sub_vec {
+                    let trimmed = apply_trim(
+                        &sub.sql_buffer,
+                        prefix.as_deref(),
+                        suffix.as_deref(),
+                        prefix_overrides.as_deref(),
+                        suffix_overrides.as_deref(),
+                    );
+                    new_variants.push(ExpansionState {
+                        sql_buffer: format!("{}{}", parent_sql, trimmed),
+                        branch_path: sub.branch_path,
+                        params: sub.params,
+                    });
+                }
             }
-            for sub in sub_variants {
-                let trimmed = apply_trim(
-                    &sub.sql_buffer,
-                    prefix.as_deref(),
-                    suffix.as_deref(),
-                    prefix_overrides.as_deref(),
-                    suffix_overrides.as_deref(),
-                );
-                variants.push(ExpansionState { sql_buffer: trimmed, branch_path: sub.branch_path, params: sub.params });
-            }
+            *variants = new_variants;
         }
         SqlNode::ForEach { collection, open, separator, close, children, .. } => {
             expand_foreach(collection, open, separator, close, children, variants, depth, config);
@@ -161,11 +182,13 @@ fn expand_if(
     depth: usize,
     config: &ExpandConfig,
 ) {
+    let prepend_str = prepend.unwrap_or("");
     match config.if_strategy {
         IfExpandStrategy::IncludeOnly => {
-            let mut sub_variants = variants
-                .drain(..)
-                .map(|v| ExpansionState {
+            let mut new_variants = Vec::new();
+            for v in variants.drain(..) {
+                let parent_sql = v.sql_buffer;
+                let mut sub_vec = vec![ExpansionState {
                     sql_buffer: String::new(),
                     branch_path: {
                         let mut p = v.branch_path;
@@ -173,17 +196,20 @@ fn expand_if(
                         p
                     },
                     params: v.params,
-                })
-                .collect::<Vec<_>>();
-            for child in children {
-                expand_node(child, &mut sub_variants, depth + 1, config);
+                }];
+                for child in children {
+                    expand_node(child, &mut sub_vec, depth + 1, config);
+                }
+                for sub in sub_vec {
+                    let content = apply_prepend_text(prepend_str, &sub.sql_buffer);
+                    new_variants.push(ExpansionState {
+                        sql_buffer: format!("{}{}", parent_sql, content),
+                        branch_path: sub.branch_path,
+                        params: sub.params,
+                    });
+                }
             }
-            let prepend_str = prepend.unwrap_or("");
-            for mut sub in sub_variants {
-                let content = apply_prepend_text(prepend_str, &sub.sql_buffer);
-                sub.sql_buffer = content;
-                variants.push(sub);
-            }
+            *variants = new_variants;
         }
         IfExpandStrategy::ExcludeOnly => {
             for v in variants.iter_mut() {
@@ -194,8 +220,10 @@ fn expand_if(
             let mut new_variants = Vec::new();
 
             for v in variants.drain(..) {
+                let parent_sql = v.sql_buffer;
+
                 // included = true
-                let inc = ExpansionState {
+                let mut inc_vec = vec![ExpansionState {
                     sql_buffer: String::new(),
                     branch_path: {
                         let mut p = v.branch_path.clone();
@@ -203,20 +231,22 @@ fn expand_if(
                         p
                     },
                     params: v.params.clone(),
-                };
-                let mut inc_vec = vec![inc];
+                }];
                 for child in children {
                     expand_node(child, &mut inc_vec, depth + 1, config);
                 }
-                let prepend_str = prepend.unwrap_or("");
-                inc_vec[0].sql_buffer = apply_prepend_text(prepend_str, &inc_vec[0].sql_buffer);
+                let content = apply_prepend_text(prepend_str, &inc_vec[0].sql_buffer);
+                inc_vec[0].sql_buffer = format!("{}{}", parent_sql, content);
                 new_variants.push(inc_vec.remove(0));
 
                 // included = false
-                let mut exc =
-                    ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params };
-                exc.branch_path.push(BranchStep::If { test: test.to_string(), included: false });
-                new_variants.push(exc);
+                let mut exc_branch_path = v.branch_path;
+                exc_branch_path.push(BranchStep::If { test: test.to_string(), included: false });
+                new_variants.push(ExpansionState {
+                    sql_buffer: parent_sql,
+                    branch_path: exc_branch_path,
+                    params: v.params,
+                });
             }
             *variants = new_variants;
         }
@@ -232,8 +262,9 @@ fn expand_choose(
     let mut new_variants = Vec::new();
 
     for v in variants.drain(..) {
+        let parent_sql = v.sql_buffer.clone();
         for (idx, (_test, branch_children)) in branches.iter().enumerate() {
-            let sub = ExpansionState {
+            let mut sub_vec = vec![ExpansionState {
                 sql_buffer: String::new(),
                 branch_path: {
                     let mut p = v.branch_path.clone();
@@ -241,12 +272,16 @@ fn expand_choose(
                     p
                 },
                 params: v.params.clone(),
-            };
-            let mut sub_vec = vec![sub];
+            }];
             for child in branch_children {
                 expand_node(child, &mut sub_vec, depth + 1, config);
             }
-            new_variants.push(sub_vec.remove(0));
+            let sub = sub_vec.remove(0);
+            new_variants.push(ExpansionState {
+                sql_buffer: format!("{}{}", parent_sql, sub.sql_buffer),
+                branch_path: sub.branch_path,
+                params: sub.params,
+            });
             if new_variants.len() >= config.max_variants {
                 break;
             }
@@ -272,6 +307,7 @@ fn expand_foreach(
     let mut new_variants = Vec::new();
 
     for v in variants.drain(..) {
+        let parent_sql = v.sql_buffer.clone();
         for &size in &config.foreach_sizes {
             let mut sub = ExpansionState {
                 sql_buffer: String::new(),
@@ -307,7 +343,7 @@ fn expand_foreach(
             let open_str = open.as_deref().unwrap_or("");
             let close_str = close.as_deref().unwrap_or("");
             let wrapped = format!("{}{}{}", open_str, sub.sql_buffer, close_str);
-            sub.sql_buffer = wrapped;
+            sub.sql_buffer = format!("{}{}", parent_sql, wrapped);
 
             new_variants.push(sub);
             if new_variants.len() >= config.max_variants {
