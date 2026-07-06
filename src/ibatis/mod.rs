@@ -259,13 +259,23 @@ fn parse_mapper_bytes_internal(
             flat_sql.clone()
         };
         // Trim before parsing to avoid leading whitespace from XML indentation
-        // skewing error line numbers (e.g. reporting line 2 instead of line 1).
+        // skewing error line numbers.
         let parse_sql_trimmed = parse_sql.trim().to_string();
         let parse_result = if !parse_sql_trimmed.is_empty() {
             Some(crate::parser::Parser::parse_sql(&parse_sql_trimmed))
         } else {
             None
         };
+
+        // Compute the XML line where body content begins (after leading whitespace).
+        let leading_newlines = flat_sql.chars().take_while(|c| c.is_whitespace()).filter(|c| *c == '\n').count();
+        let body_start_line = stmt.line + leading_newlines;
+
+        // Remap SQL parse error line numbers to XML file line numbers.
+        let parse_result = parse_result.map(|(infos, errors)| {
+            let errors = errors.into_iter().map(|e| remap_error_line(e, body_start_line as isize - 1)).collect();
+            (infos, errors)
+        });
 
         statements.push(ParsedStatement {
             id: stmt.id.clone(),
@@ -276,6 +286,7 @@ fn parse_mapper_bytes_internal(
             parameters,
             has_dynamic_elements: has_dynamic,
             line: stmt.line,
+            body_start_line,
             parse_result,
             database_id: stmt.database_id.clone(),
             statement_type: stmt.statement_type.clone(),
@@ -518,6 +529,24 @@ fn has_dynamic_elements(node: &SqlNode) -> bool {
         | SqlNode::Bind { .. }
         | SqlNode::Include { .. } => true,
     }
+}
+
+/// Offset a `ParserError`'s line number by `offset` (may be negative).
+/// Used to remap SQL-text line numbers to XML file line numbers.
+fn remap_error_line(mut err: crate::parser::ParserError, offset: isize) -> crate::parser::ParserError {
+    use crate::token::SourceLocation;
+    let adjust = |loc: &mut SourceLocation| {
+        loc.line = (loc.line as isize + offset).max(1) as usize;
+    };
+    match &mut err {
+        crate::parser::ParserError::UnexpectedToken { location, .. } => adjust(location),
+        crate::parser::ParserError::UnexpectedEof { location, .. } => adjust(location),
+        crate::parser::ParserError::Warning { location, .. } => adjust(location),
+        crate::parser::ParserError::ReservedKeywordAsIdentifier { location, .. } => adjust(location),
+        crate::parser::ParserError::UnsupportedSyntax { location, .. } => adjust(location),
+        crate::parser::ParserError::TokenizerError(_) => {}
+    }
+    err
 }
 
 #[cfg(test)]
