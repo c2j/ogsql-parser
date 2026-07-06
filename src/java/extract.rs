@@ -509,7 +509,8 @@ impl<'a> ExtractContext<'a> {
         if sql_kind == SqlKind::Jpql {
             return None;
         }
-        let flat_sql = sql.trim().to_string();
+        let stripped = crate::translate_jdbc_call(sql);
+        let flat_sql = stripped.trim().to_string();
         if flat_sql.is_empty() {
             return None;
         }
@@ -1452,9 +1453,15 @@ impl<'a> ExtractContext<'a> {
 }
 
 pub(crate) fn starts_with_sql_keyword(sql: &str) -> bool {
-    let first_word = sql.split_whitespace().next().unwrap_or("");
+    let trimmed = sql.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let first_word = trimmed.split_whitespace().next().unwrap_or("");
     let upper = first_word.to_uppercase();
-    matches!(upper.as_str(), "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "WITH")
+    matches!(upper.as_str(), "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "WITH" | "CALL")
+        || upper.starts_with("{CALL")
+        || upper.starts_with("{?")
 }
 
 fn sanitize_var_name(var_name: &str) -> String {
