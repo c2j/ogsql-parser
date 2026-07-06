@@ -119,6 +119,17 @@ pub use token_formatter::{CommaStyle, FormatConfig, KeywordCase};
 ///
 /// Idempotent — if the input does not start with a JDBC escape pattern, it is
 /// returned unchanged.
+/// Check that `call` is followed by a word boundary (whitespace, `(`, `}`, or end-of-string).
+/// Prevents false matches on identifiers like `callpkg` that start with "call".
+fn is_jdbc_call_boundary(b: u8) -> bool {
+    matches!(b, b' ' | b'\t' | b'\n' | b'\r' | b'(' | b'}')
+}
+
+/// Match the JDBC `call` keyword with mandatory word boundary.
+fn try_match_call(s: &str) -> bool {
+    s.len() >= 4 && s[..4].eq_ignore_ascii_case("call") && (s.len() == 4 || is_jdbc_call_boundary(s.as_bytes()[4]))
+}
+
 pub fn translate_jdbc_call(sql: &str) -> String {
     let trimmed = sql.trim_start();
 
@@ -135,7 +146,7 @@ pub fn translate_jdbc_call(sql: &str) -> String {
         } else {
             return sql.to_string();
         };
-        if after_call.len() >= 4 && after_call[..4].eq_ignore_ascii_case("call") {
+        if try_match_call(after_call) {
             let body = &after_call[4..].trim_start();
             return strip_trailing_brace(body);
         }
@@ -144,7 +155,7 @@ pub fn translate_jdbc_call(sql: &str) -> String {
 
     // {call proc(args)}  → CALL proc(args)
     let after_brace = after_brace.trim_start();
-    if after_brace.len() >= 4 && after_brace[..4].eq_ignore_ascii_case("call") {
+    if try_match_call(after_brace) {
         let body = &after_brace[4..].trim_start();
         return strip_trailing_brace(body);
     }
