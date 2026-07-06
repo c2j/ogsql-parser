@@ -258,8 +258,14 @@ fn parse_mapper_bytes_internal(
         } else {
             flat_sql.clone()
         };
-        let parse_result =
-            if !flat_sql.trim().is_empty() { Some(crate::parser::Parser::parse_sql(&parse_sql)) } else { None };
+        // Trim before parsing to avoid leading whitespace from XML indentation
+        // skewing error line numbers (e.g. reporting line 2 instead of line 1).
+        let parse_sql_trimmed = parse_sql.trim().to_string();
+        let parse_result = if !parse_sql_trimmed.is_empty() {
+            Some(crate::parser::Parser::parse_sql(&parse_sql_trimmed))
+        } else {
+            None
+        };
 
         statements.push(ParsedStatement {
             id: stmt.id.clone(),
