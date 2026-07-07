@@ -5424,7 +5424,7 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
         if !global_err_msgs.is_empty() || !global_warn_msgs.is_empty() {
             let has_global_real = !global_err_msgs.is_empty();
             println!(
-                "{},.,0,,,,,,{},{},{},{},{}",
+                "{},.,0,,,,,,,{},{},{},{},{}",
                 csv_escape(file_name),
                 if has_global_real { "INVALID" } else { "VALID" },
                 global_err_msgs.len(),
@@ -5731,7 +5731,7 @@ fn cmd_validate_xml_dir(
             let has_global_real = !global_err_msgs.is_empty();
             if !global_err_msgs.is_empty() || !global_warn_msgs.is_empty() {
                 println!(
-                    "{},{},0,,,,,,{},{},{},{},{}",
+                    "{},{},0,,,,,,,{},{},{},{},{}",
                     csv_escape(&file_name),
                     csv_escape(&rel_dir),
                     if has_global_real { "INVALID" } else { "VALID" },
