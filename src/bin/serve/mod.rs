@@ -3,7 +3,6 @@
 pub mod error;
 pub mod handlers;
 pub mod openapi;
-pub mod sarif;
 pub mod schema;
 
 use axum::extract::DefaultBodyLimit;
