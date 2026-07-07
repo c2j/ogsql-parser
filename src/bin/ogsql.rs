@@ -4614,6 +4614,7 @@ fn error_line(err: &ParserError) -> usize {
         ParserError::UnexpectedEof { location, .. } => location.line,
         ParserError::ReservedKeywordAsIdentifier { location, .. } => location.line,
         ParserError::Warning { location, .. } => location.line,
+        ParserError::UnsupportedSyntax { location, .. } => location.line,
         _ => 0,
     }
 }
@@ -5329,7 +5330,6 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
 
     // Convert XML parse errors to ParserError for unified output
     // 将 XML 解析错误转换为 ParserError 以便统一输出
-    let has_xml_errors = !result.errors.is_empty();
     for e in &result.errors {
         all_errors.push(ogsql_parser::ParserError::UnexpectedToken {
             location: ogsql_parser::SourceLocation::default(),
@@ -5341,7 +5341,6 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
     // Run validation pipeline: PACKAGE consistency, MERGE semantics, PL variable validation
     // 运行校验管线：PACKAGE 一致性、MERGE 语义、PL 变量校验
     let (core_errors, pkg_errors, var_errors) = validate_from_stmts(&all_stmts, &[], strict);
-    all_errors.extend(core_errors);
 
     // Lint with Confidence::Full
     // 使用 Full 置信度运行 lint
@@ -5360,11 +5359,6 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
         lint_warnings.extend(expand_ws);
     }
 
-    // 区分警告和真实错误
-    let warnings: Vec<_> = all_errors.iter().filter(|e| is_warning(e)).collect();
-    let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
-    let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
-
     let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
         let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
         let kind_label = match ve.kind {
@@ -5378,10 +5372,17 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
         // CSV output: one row per extracted statement
         println!("file,directory,line,type,name,parent,parameters,return_type,sql,valid,error_count,warning_count,errors,warnings");
         for stmt in &result.statements {
-            let stmt_real_errors: Vec<&ogsql_parser::ParserError> =
-                real_errors.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
-            let stmt_warnings: Vec<&ogsql_parser::ParserError> =
-                warnings.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
+            // Use parse_result directly (not filtered by error_line) to correctly attribute
+            // per-statement errors without N× amplification or silent drop.
+            let (stmt_real_errors, stmt_warnings): (Vec<&ogsql_parser::ParserError>, Vec<&ogsql_parser::ParserError>) =
+                match &stmt.parse_result {
+                    Some((_, parse_errors)) => {
+                        let errs = parse_errors.iter().filter(|e| !is_warning(e)).collect();
+                        let warns = parse_errors.iter().filter(|e| is_warning(e)).collect();
+                        (errs, warns)
+                    }
+                    None => (vec![], vec![]),
+                };
             let err_msgs: Vec<String> = stmt_real_errors.iter().map(|e| format!("{}", e)).collect();
             let warn_msgs: Vec<String> = stmt_warnings.iter().map(|e| format!("{}", e)).collect();
             println!(
@@ -5399,25 +5400,47 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
                 csv_escape(&warn_msgs.join("; ")),
             );
         }
-        // If the file has XML-level errors not attached to any statement, output a summary row
-        if has_xml_errors && result.statements.is_empty() {
-            let err_msgs: Vec<String> = real_errors.iter().map(|e| format!("{}", e)).collect();
-            let warn_msgs: Vec<String> = warnings.iter().map(|e| format!("{}", e)).collect();
+        // Global-level errors: XML parse errors + validation errors (MERGE, PACKAGE, etc.)
+        // These don't belong to any single statement's parse_result.
+        // Emit a line=0 summary row if any exist.
+        let global_err_msgs: Vec<String> = result
+            .errors
+            .iter()
+            .map(|e| format!("{}", e))
+            .chain(core_errors.iter().filter(|e| !is_warning(e)).map(|e| format!("{}", e)))
+            .chain(var_errors.iter().map(&format_var_err))
+            .collect();
+        let global_warn_msgs: Vec<String> =
+            core_errors.iter().filter(|e| is_warning(e)).map(|e| format!("{}", e)).collect();
+        if !global_err_msgs.is_empty() || !global_warn_msgs.is_empty() {
+            let has_global_real = !global_err_msgs.is_empty();
             println!(
                 "{},.,0,,,,,,{},{},{},{},{}",
                 csv_escape(file_name),
-                if real_errors.is_empty() { "VALID" } else { "INVALID" },
-                real_errors.len(),
-                warnings.len(),
-                csv_escape(&err_msgs.join("; ")),
-                csv_escape(&warn_msgs.join("; ")),
+                if has_global_real { "INVALID" } else { "VALID" },
+                global_err_msgs.len(),
+                global_warn_msgs.len(),
+                csv_escape(&global_err_msgs.join("; ")),
+                csv_escape(&global_warn_msgs.join("; ")),
             );
         }
-        if has_errors {
+        // Compute overall status for exit code: include validation errors (core_errors)
+        // and per-statement parse errors (already in all_errors).
+        all_errors.extend(core_errors);
+        let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
+        let has_global_or_parse_real = !real_errors.is_empty() || !var_errors.is_empty();
+        if has_global_or_parse_real {
             std::process::exit(1);
         }
         return;
     }
+
+    // Text mode below: extend all_errors with validation errors before summary computation
+    all_errors.extend(core_errors);
+
+    let warnings: Vec<_> = all_errors.iter().filter(|e| is_warning(e)).collect();
+    let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
+    let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
 
     if cli.json {
         let mut out = serde_json::json!({
@@ -5470,9 +5493,11 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
             if stmt.has_dynamic_elements {
                 println!("  [contains dynamic SQL elements]");
             }
-            // Show parse errors for this statement
-            let stmt_real_errors: Vec<&ogsql_parser::ParserError> =
-                real_errors.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
+            // Show parse errors for this statement from parse_result directly
+            let stmt_real_errors: Vec<&ogsql_parser::ParserError> = match &stmt.parse_result {
+                Some((_, parse_errors)) => parse_errors.iter().filter(|e| !is_warning(e)).collect(),
+                None => vec![],
+            };
             if !stmt_real_errors.is_empty() {
                 eprintln!("  {} parse error(s):", stmt_real_errors.len());
                 for e in &stmt_real_errors {
@@ -5630,7 +5655,6 @@ fn cmd_validate_xml_dir(
         }
 
         let (core_errors, pkg_errors, var_errors) = validate_from_stmts(&all_stmts, &[], strict);
-        all_errors.extend(core_errors);
 
         let config = build_lint_config(cli);
         let mut lint_warnings: Vec<ogsql_parser::linter::SqlWarning> = Vec::new();
@@ -5645,21 +5669,6 @@ fn cmd_validate_xml_dir(
             lint_warnings.extend(expand_ws);
         }
 
-        let warnings: Vec<_> = all_errors.iter().filter(|e| is_warning(e)).collect();
-        let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
-        let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
-
-        total_files += 1;
-        if has_errors {
-            any_invalid = true;
-            files_with_errors.insert(file_name.clone());
-        }
-        if !warnings.is_empty() {
-            files_with_warnings.insert(file_name.clone());
-        }
-        total_errors += real_errors.len() + var_errors.len();
-        total_warnings += warnings.len();
-
         let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
             let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
             let kind_label = match ve.kind {
@@ -5671,10 +5680,17 @@ fn cmd_validate_xml_dir(
 
         if csv {
             for stmt in &result.statements {
-                let stmt_real_errors: Vec<&ogsql_parser::ParserError> =
-                    real_errors.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
-                let stmt_warnings: Vec<&ogsql_parser::ParserError> =
-                    warnings.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
+                let (stmt_real_errors, stmt_warnings): (
+                    Vec<&ogsql_parser::ParserError>,
+                    Vec<&ogsql_parser::ParserError>,
+                ) = match &stmt.parse_result {
+                    Some((_, parse_errors)) => {
+                        let errs = parse_errors.iter().filter(|e| !is_warning(e)).collect();
+                        let warns = parse_errors.iter().filter(|e| is_warning(e)).collect();
+                        (errs, warns)
+                    }
+                    None => (vec![], vec![]),
+                };
                 let err_msgs: Vec<String> = stmt_real_errors.iter().map(|e| format!("{}", e)).collect();
                 let warn_msgs: Vec<String> = stmt_warnings.iter().map(|e| format!("{}", e)).collect();
                 println!(
@@ -5693,55 +5709,105 @@ fn cmd_validate_xml_dir(
                     csv_escape(&warn_msgs.join("; ")),
                 );
             }
-            // A single file might have no statements (pure XML error) — output file-level row
-            if result.statements.is_empty() && (has_errors || !warnings.is_empty()) {
-                let err_msgs: Vec<String> = real_errors.iter().map(|e| format!("{}", e)).collect();
-                let warn_msgs: Vec<String> = warnings.iter().map(|e| format!("{}", e)).collect();
+            // Global-level errors: XML parse errors + validation errors (MERGE, PACKAGE)
+            let global_err_msgs: Vec<String> = result
+                .errors
+                .iter()
+                .map(|e| format!("{}", e))
+                .chain(core_errors.iter().filter(|e| !is_warning(e)).map(|e| format!("{}", e)))
+                .chain(var_errors.iter().map(&format_var_err))
+                .collect();
+            let global_warn_msgs: Vec<String> =
+                core_errors.iter().filter(|e| is_warning(e)).map(|e| format!("{}", e)).collect();
+            let has_global_real = !global_err_msgs.is_empty();
+            if !global_err_msgs.is_empty() || !global_warn_msgs.is_empty() {
                 println!(
                     "{},{},0,,,,,,{},{},{},{},{}",
                     csv_escape(&file_name),
                     csv_escape(&rel_dir),
-                    if real_errors.is_empty() && var_errors.is_empty() { "VALID" } else { "INVALID" },
-                    real_errors.len() + var_errors.len(),
-                    warnings.len(),
-                    csv_escape(&err_msgs.join("; ")),
-                    csv_escape(&warn_msgs.join("; ")),
+                    if has_global_real { "INVALID" } else { "VALID" },
+                    global_err_msgs.len(),
+                    global_warn_msgs.len(),
+                    csv_escape(&global_err_msgs.join("; ")),
+                    csv_escape(&global_warn_msgs.join("; ")),
                 );
             }
-        } else if cli.json {
-            files_processed.push((file_name, rel_dir, all_errors, var_errors, pkg_errors, lint_warnings, has_errors));
-        } else {
-            // Text output per file
+            // Extend and compute stats with validation errors included
+            all_errors.extend(core_errors);
+            let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
+            let warnings: Vec<_> = all_errors.iter().filter(|e| is_warning(e)).collect();
+            let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
+            total_files += 1;
             if has_errors {
-                println!(
-                    "[{}/{}] INVALID ({} error(s), {} warning(s))",
-                    rel_dir,
-                    file_name,
-                    real_errors.len() + var_errors.len(),
-                    warnings.len()
-                );
-                for e in &real_errors {
-                    eprintln!("  error: {}", e);
-                }
-                for ve in &var_errors {
-                    eprintln!("  error: {}", format_var_err(ve));
-                }
-                for w in &warnings {
-                    eprintln!("  warning: {}", w);
-                }
-            } else if !warnings.is_empty() {
-                println!("[{}/{}] VALID ({} warning(s))", rel_dir, file_name, warnings.len());
-                for w in &warnings {
-                    eprintln!("  warning: {}", w);
-                }
-            } else {
-                println!("[{}/{}] VALID", rel_dir, file_name);
+                any_invalid = true;
+                files_with_errors.insert(file_name.clone());
             }
-            // Also print statement details if verbose
-            if cli.verbose && !result.statements.is_empty() {
-                for stmt in &result.statements {
-                    println!("  ── {} ({:?}) ──", stmt.id, stmt.kind);
-                    println!("  {}", stmt.flat_sql.trim());
+            if !warnings.is_empty() {
+                files_with_warnings.insert(file_name.clone());
+            }
+            total_errors += real_errors.len() + var_errors.len();
+            total_warnings += warnings.len();
+        } else {
+            // Non-CSV: extend core_errors, compute stats, then output
+            all_errors.extend(core_errors);
+            let warnings: Vec<_> = all_errors.iter().filter(|e| is_warning(e)).collect();
+            let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
+            let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
+
+            total_files += 1;
+            if has_errors {
+                any_invalid = true;
+                files_with_errors.insert(file_name.clone());
+            }
+            if !warnings.is_empty() {
+                files_with_warnings.insert(file_name.clone());
+            }
+            total_errors += real_errors.len() + var_errors.len();
+            total_warnings += warnings.len();
+
+            if cli.json {
+                files_processed.push((
+                    file_name,
+                    rel_dir,
+                    all_errors,
+                    var_errors,
+                    pkg_errors,
+                    lint_warnings,
+                    has_errors,
+                ));
+            } else {
+                // Text output per file
+                if has_errors {
+                    println!(
+                        "[{}/{}] INVALID ({} error(s), {} warning(s))",
+                        rel_dir,
+                        file_name,
+                        real_errors.len() + var_errors.len(),
+                        warnings.len()
+                    );
+                    for e in &real_errors {
+                        eprintln!("  error: {}", e);
+                    }
+                    for ve in &var_errors {
+                        eprintln!("  error: {}", format_var_err(ve));
+                    }
+                    for w in &warnings {
+                        eprintln!("  warning: {}", w);
+                    }
+                } else if !warnings.is_empty() {
+                    println!("[{}/{}] VALID ({} warning(s))", rel_dir, file_name, warnings.len());
+                    for w in &warnings {
+                        eprintln!("  warning: {}", w);
+                    }
+                } else {
+                    println!("[{}/{}] VALID", rel_dir, file_name);
+                }
+                // Also print statement details if verbose
+                if cli.verbose && !result.statements.is_empty() {
+                    for stmt in &result.statements {
+                        println!("  ── {} ({:?}) ──", stmt.id, stmt.kind);
+                        println!("  {}", stmt.flat_sql.trim());
+                    }
                 }
             }
         }
