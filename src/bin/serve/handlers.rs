@@ -1,14 +1,11 @@
 //! HTTP handler functions for the serve API.
 
-use axum::body::Body;
 use axum::extract::FromRequest;
 use axum::extract::Request;
 use axum::http::header::CONTENT_TYPE;
-use axum::response::{IntoResponse, Response};
 use axum::Json;
 
 use super::error::ApiError;
-use super::sarif;
 use super::schema::*;
 
 // ─── Health ──────────────────────────────────────────────────
@@ -252,23 +249,17 @@ pub async fn handle_tokenize(Json(input): Json<TokenizeInput>) -> Result<Json<To
 // ─── Validate ────────────────────────────────────────────────
 
 /// Validate SQL syntax — accepts JSON body or multipart file upload.
-///
-/// Supports optional SARIF 2.1.0 output: set `"format": "sarif"` in request body
-/// to receive a `application/sarif+json` response usable with GitHub Code Scanning.
 #[utoipa::path(
     post,
     path = "/api/validate",
     tag = "ogsql",
     request_body = ValidateInput,
     responses(
-        (status = 200, description = "Validation result (JSON)",
-         body = ValidateResponse, content_type = "application/json"),
-        (status = 200, description = "Validation result (SARIF 2.1.0)",
-         content_type = "application/sarif+json"),
+        (status = 200, description = "Validation result", body = ValidateResponse),
         (status = 400, description = "Invalid request", body = super::error::ApiErrorBody),
     )
 )]
-pub async fn handle_validate(req: Request) -> Result<Response, ApiError> {
+pub async fn handle_validate(req: Request) -> Result<Json<ValidateResponse>, ApiError> {
     let ct = req.headers().get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/json");
 
     let input = if ct.starts_with("multipart/form-data") {
@@ -283,12 +274,7 @@ pub async fn handle_validate(req: Request) -> Result<Response, ApiError> {
     do_validate(input)
 }
 
-fn do_validate(input: ValidateInput) -> Result<Response, ApiError> {
-    let response = build_validate_response(&input)?;
-    maybe_sarif_response(response, &input.sql, input.format.as_deref())
-}
-
-fn build_validate_response(input: &ValidateInput) -> Result<ValidateResponse, ApiError> {
+fn do_validate(input: ValidateInput) -> Result<Json<ValidateResponse>, ApiError> {
     let output = crate::parse_input(&input.sql, false, input.mybatis);
 
     let pkg_errors = ogsql_parser::validate_package_consistency(&output.statements);
@@ -387,7 +373,7 @@ fn build_validate_response(input: &ValidateInput) -> Result<ValidateResponse, Ap
         }
     }
 
-    Ok(response)
+    Ok(Json(response))
 }
 
 // ─── json2sql ────────────────────────────────────────────────
@@ -483,22 +469,17 @@ pub async fn handle_parse_java(Json(input): Json<ParseJavaInput>) -> Result<Json
 
 #[cfg(feature = "ibatis")]
 /// Validate iBatis/MyBatis XML mapper — accepts JSON body or multipart file upload.
-///
-/// Supports optional SARIF 2.1.0 output: set `"format": "sarif"` in request body.
 #[utoipa::path(
     post,
     path = "/api/validate-xml",
     tag = "ogsql",
     request_body = ValidateXmlInput,
     responses(
-        (status = 200, description = "Validation result (JSON)",
-         body = ValidateResponse, content_type = "application/json"),
-        (status = 200, description = "Validation result (SARIF 2.1.0)",
-         content_type = "application/sarif+json"),
+        (status = 200, description = "Validation result", body = ValidateResponse),
         (status = 400, description = "Invalid request", body = super::error::ApiErrorBody),
     )
 )]
-pub async fn handle_validate_xml(req: Request) -> Result<Response, ApiError> {
+pub async fn handle_validate_xml(req: Request) -> Result<Json<ValidateResponse>, ApiError> {
     let ct = req.headers().get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/json");
 
     let input = if ct.starts_with("multipart/form-data") {
@@ -514,13 +495,7 @@ pub async fn handle_validate_xml(req: Request) -> Result<Response, ApiError> {
 }
 
 #[cfg(feature = "ibatis")]
-fn do_validate_xml(input: ValidateXmlInput) -> Result<Response, ApiError> {
-    let response = build_xml_validate_response(&input)?;
-    maybe_sarif_response(response, &input.xml, input.format.as_deref())
-}
-
-#[cfg(feature = "ibatis")]
-fn build_xml_validate_response(input: &ValidateXmlInput) -> Result<ValidateResponse, ApiError> {
+fn do_validate_xml(input: ValidateXmlInput) -> Result<Json<ValidateResponse>, ApiError> {
     let xml_bytes = input.xml.as_bytes();
 
     #[cfg(feature = "java")]
@@ -530,15 +505,19 @@ fn build_xml_validate_response(input: &ValidateXmlInput) -> Result<ValidateRespo
     let _java_roots: Vec<std::path::PathBuf> = vec![];
 
     #[cfg(feature = "java")]
-    let result = if java_roots.is_empty() {
-        ogsql_parser::ibatis::parse_mapper_bytes_with_path(xml_bytes, None)
-    } else {
-        ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(xml_bytes, None, java_roots)
-    };
+    {
+        let r = if java_roots.is_empty() {
+            ogsql_parser::ibatis::parse_mapper_bytes_with_path(xml_bytes, None)
+        } else {
+            ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(xml_bytes, None, java_roots)
+        };
+        build_xml_validation_response(&r, xml_bytes, input.strict, input.lint, &input.lint_config)
+    }
     #[cfg(not(feature = "java"))]
-    let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(xml_bytes, None);
-
-    build_xml_validation_response(&result, xml_bytes, input.strict, input.lint, &input.lint_config)
+    {
+        let r = ogsql_parser::ibatis::parse_mapper_bytes_with_path(xml_bytes, None);
+        build_xml_validation_response(&r, xml_bytes, input.strict, input.lint, &input.lint_config)
+    }
 }
 
 #[cfg(feature = "ibatis")]
@@ -548,7 +527,7 @@ fn build_xml_validation_response(
     strict: Option<bool>,
     lint_enabled: Option<bool>,
     lint_config_opt: &Option<LintConfigInput>,
-) -> Result<ValidateResponse, ApiError> {
+) -> Result<Json<ValidateResponse>, ApiError> {
     let mut all_stmts: Vec<ogsql_parser::StatementInfo> = Vec::new();
     let mut all_errors: Vec<ogsql_parser::ParserError> = Vec::new();
     let mut statement_validations: Vec<StatementValidation> = Vec::new();
@@ -634,29 +613,24 @@ fn build_xml_validation_response(
         }
     }
 
-    Ok(response)
+    Ok(Json(response))
 }
 
 // ─── validate-java (feature = "java") ───────────────────────
 
 #[cfg(feature = "java")]
 /// Validate Java source — accepts JSON body or multipart file upload.
-///
-/// Supports optional SARIF 2.1.0 output: set `"format": "sarif"` in request body.
 #[utoipa::path(
     post,
     path = "/api/validate-java",
     tag = "ogsql",
     request_body = ValidateJavaInput,
     responses(
-        (status = 200, description = "Validation result (JSON)",
-         body = ValidateResponse, content_type = "application/json"),
-        (status = 200, description = "Validation result (SARIF 2.1.0)",
-         content_type = "application/sarif+json"),
+        (status = 200, description = "Validation result", body = ValidateResponse),
         (status = 400, description = "Invalid request", body = super::error::ApiErrorBody),
     )
 )]
-pub async fn handle_validate_java(req: Request) -> Result<Response, ApiError> {
+pub async fn handle_validate_java(req: Request) -> Result<Json<ValidateResponse>, ApiError> {
     let ct = req.headers().get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/json");
 
     let input = if ct.starts_with("multipart/form-data") {
@@ -672,16 +646,10 @@ pub async fn handle_validate_java(req: Request) -> Result<Response, ApiError> {
 }
 
 #[cfg(feature = "java")]
-fn do_validate_java(input: ValidateJavaInput) -> Result<Response, ApiError> {
-    let response = build_java_validate_response(&input)?;
-    maybe_sarif_response(response, &input.source, input.format.as_deref())
-}
-
-#[cfg(feature = "java")]
-fn build_java_validate_response(input: &ValidateJavaInput) -> Result<ValidateResponse, ApiError> {
+fn do_validate_java(input: ValidateJavaInput) -> Result<Json<ValidateResponse>, ApiError> {
     let config = ogsql_parser::java::JavaExtractConfig {
-        extra_sql_methods: input.extra_sql_methods.clone().unwrap_or_default(),
-        extra_sql_var_patterns: input.extra_sql_var_patterns.clone().unwrap_or_default(),
+        extra_sql_methods: input.extra_sql_methods.unwrap_or_default(),
+        extra_sql_var_patterns: input.extra_sql_var_patterns.unwrap_or_default(),
     };
     let result = ogsql_parser::java::extract_sql_from_java(&input.source, "<api-input>", &config);
 
@@ -777,29 +745,7 @@ fn build_java_validate_response(input: &ValidateJavaInput) -> Result<ValidateRes
         }
     }
 
-    Ok(response)
-}
-
-// ─── SARIF output helper ────────────────────────────────────
-
-/// If `format == "sarif"`, convert the response to SARIF 2.1.0 JSON.
-/// Otherwise, serialize as the default JSON response.
-fn maybe_sarif_response(
-    response: ValidateResponse,
-    source_text: &str,
-    format: Option<&str>,
-) -> Result<Response, ApiError> {
-    match format {
-        Some("sarif") => {
-            let rules = ogsql_parser::linter::all_rules_metadata();
-            let sarif =
-                sarif::build_sarif_log(&response, source_text, &rules, "ogsql-parser", env!("CARGO_PKG_VERSION"));
-            let body =
-                serde_json::to_string(&sarif).map_err(|e| ApiError::Internal(format!("SARIF serialization: {e}")))?;
-            Ok(Response::builder().header(CONTENT_TYPE, "application/sarif+json").body(Body::from(body)).unwrap())
-        }
-        _ => Ok(Json(response).into_response()),
-    }
+    Ok(Json(response))
 }
 
 // ─── Multipart form-data helpers ────────────────────────────
@@ -842,7 +788,6 @@ async fn parse_validate_multipart(req: Request) -> Result<ValidateInput, ApiErro
         lint: config.lint,
         schema_json: None,
         lint_config: config.lint_config,
-        format: config.format,
     })
 }
 
@@ -885,7 +830,6 @@ async fn parse_validate_xml_multipart(req: Request) -> Result<ValidateXmlInput, 
         strict: config.strict,
         lint: config.lint,
         lint_config: config.lint_config,
-        format: config.format,
     })
 }
 
@@ -928,7 +872,6 @@ async fn parse_validate_java_multipart(req: Request) -> Result<ValidateJavaInput
         strict: config.strict,
         lint: config.lint,
         lint_config: config.lint_config,
-        format: config.format,
     })
 }
 
