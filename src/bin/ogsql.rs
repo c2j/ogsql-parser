@@ -4612,7 +4612,19 @@ fn error_line(err: &ParserError) -> usize {
         ParserError::ReservedKeywordAsIdentifier { location, .. } => location.line,
         ParserError::Warning { location, .. } => location.line,
         ParserError::UnsupportedSyntax { location, .. } => location.line,
-        _ => 0,
+        ParserError::TokenizerError(te) => tokenizer_error_line(te),
+    }
+}
+
+fn tokenizer_error_line(err: &ogsql_parser::TokenizerError) -> usize {
+    use ogsql_parser::TokenizerError;
+    match err {
+        TokenizerError::UnterminatedString(loc)
+        | TokenizerError::UnterminatedComment(loc)
+        | TokenizerError::UnterminatedDollarString(loc)
+        | TokenizerError::UnterminatedQuotedIdentifier(loc)
+        | TokenizerError::InvalidCharacter { location: loc, .. } => loc.line,
+        TokenizerError::UnexpectedEof { location: loc, .. } => loc.line,
     }
 }
 

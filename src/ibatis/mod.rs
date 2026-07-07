@@ -544,9 +544,24 @@ fn remap_error_line(mut err: crate::parser::ParserError, offset: isize) -> crate
         crate::parser::ParserError::Warning { location, .. } => adjust(location),
         crate::parser::ParserError::ReservedKeywordAsIdentifier { location, .. } => adjust(location),
         crate::parser::ParserError::UnsupportedSyntax { location, .. } => adjust(location),
-        crate::parser::ParserError::TokenizerError(_) => {}
+        crate::parser::ParserError::TokenizerError(te) => remap_tokenizer_error(te, offset),
     }
     err
+}
+
+fn remap_tokenizer_error(err: &mut crate::token::tokenizer::TokenizerError, offset: isize) {
+    let adjust = |loc: &mut crate::token::SourceLocation| {
+        loc.line = (loc.line as isize + offset).max(1) as usize;
+    };
+    use crate::token::tokenizer::TokenizerError;
+    match err {
+        TokenizerError::UnterminatedString(loc)
+        | TokenizerError::UnterminatedComment(loc)
+        | TokenizerError::UnterminatedDollarString(loc)
+        | TokenizerError::UnterminatedQuotedIdentifier(loc)
+        | TokenizerError::InvalidCharacter { location: loc, .. } => adjust(loc),
+        TokenizerError::UnexpectedEof { location: loc, .. } => adjust(loc),
+    }
 }
 
 #[cfg(test)]

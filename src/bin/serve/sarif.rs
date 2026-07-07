@@ -281,9 +281,8 @@ fn parser_error_fields(
         }
         ParserError::TokenizerError(te) => {
             let rule_id = "OGSQL/TOKENIZER_ERROR".to_string();
-            let pos = te_position(te);
-            let line_col = byte_offset_to_line_col(source_text, pos);
-            let loc = line_col.map(|(line, col)| {
+            let (loc, pos) = te_location_offset(te);
+            let loc = loc.map(|(line, col)| {
                 vec![Location {
                     physical_location: Some(PhysicalLocation {
                         artifact_location: ArtifactLocation { uri: "api://input".to_string() },
@@ -302,16 +301,17 @@ fn parser_error_fields(
     }
 }
 
-/// Extract byte offset from TokenizerError.
-fn te_position(te: &ogsql_parser::TokenizerError) -> usize {
-    match te {
-        ogsql_parser::TokenizerError::UnterminatedString(p)
-        | ogsql_parser::TokenizerError::UnterminatedComment(p)
-        | ogsql_parser::TokenizerError::UnterminatedDollarString(p)
-        | ogsql_parser::TokenizerError::UnterminatedQuotedIdentifier(p)
-        | ogsql_parser::TokenizerError::InvalidCharacter(_, p) => *p,
-        ogsql_parser::TokenizerError::UnexpectedEof { position: p, .. } => *p,
-    }
+/// Extract (line, col) and byte offset from TokenizerError.
+fn te_location_offset(te: &ogsql_parser::TokenizerError) -> (Option<(usize, usize)>, usize) {
+    let loc = match te {
+        ogsql_parser::TokenizerError::UnterminatedString(loc)
+        | ogsql_parser::TokenizerError::UnterminatedComment(loc)
+        | ogsql_parser::TokenizerError::UnterminatedDollarString(loc)
+        | ogsql_parser::TokenizerError::UnterminatedQuotedIdentifier(loc)
+        | ogsql_parser::TokenizerError::InvalidCharacter { location: loc, .. } => loc,
+        ogsql_parser::TokenizerError::UnexpectedEof { location: loc, .. } => loc,
+    };
+    ((loc.line > 0 || loc.column > 0 || loc.offset > 0).then_some((loc.line, loc.column)), loc.offset)
 }
 
 fn undefined_var_to_result(var: &serde_json::Value) -> Result {
