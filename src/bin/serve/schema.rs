@@ -66,6 +66,9 @@ pub struct ValidateInput {
     pub schema_json: Option<String>,
     #[serde(default)]
     pub lint_config: Option<LintConfigInput>,
+    /// Output format: `"sarif"` for SARIF 2.1.0, omitted for default JSON.
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 /// POST /api/tokenize request body.
@@ -126,6 +129,9 @@ pub struct ValidateXmlInput {
     pub lint: Option<bool>,
     #[serde(default)]
     pub lint_config: Option<LintConfigInput>,
+    /// Output format: `"sarif"` for SARIF 2.1.0, omitted for default JSON.
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[cfg(feature = "java")]
@@ -144,6 +150,9 @@ pub struct ValidateJavaInput {
     pub lint: Option<bool>,
     #[serde(default)]
     pub lint_config: Option<LintConfigInput>,
+    /// Output format: `"sarif"` for SARIF 2.1.0, omitted for default JSON.
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 // ─── Response types ───────────────────────────────────────────
@@ -343,6 +352,9 @@ pub struct ValidateMultipartConfig {
     pub lint: Option<bool>,
     #[serde(default)]
     pub lint_config: Option<LintConfigInput>,
+    /// Output format: `"sarif"` for SARIF 2.1.0, omitted for default JSON.
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[cfg(feature = "ibatis")]
@@ -355,6 +367,9 @@ pub struct ValidateXmlMultipartConfig {
     pub lint: Option<bool>,
     #[serde(default)]
     pub lint_config: Option<LintConfigInput>,
+    /// Output format: `"sarif"` for SARIF 2.1.0, omitted for default JSON.
+    #[serde(default)]
+    pub format: Option<String>,
 }
 
 #[cfg(feature = "java")]
@@ -371,4 +386,7 @@ pub struct ValidateJavaMultipartConfig {
     pub lint: Option<bool>,
     #[serde(default)]
     pub lint_config: Option<LintConfigInput>,
+    /// Output format: `"sarif"` for SARIF 2.1.0, omitted for default JSON.
+    #[serde(default)]
+    pub format: Option<String>,
 }
