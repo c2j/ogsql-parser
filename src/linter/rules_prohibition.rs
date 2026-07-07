@@ -14,7 +14,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R001",
             name: "select-star",
-            description: "SELECT * in nested queries only; outer-most SELECT * acceptable, nested subqueries must use explicit column lists",
             level: WarningLevel::Prohibition,
             stmt_kind: StatementKind::Dml,
             check_fn: check_r001,
@@ -22,7 +21,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R002",
             name: "large-column-sort",
-            description: "Large GROUP BY or ORDER BY column counts may cause performance problems",
             level: WarningLevel::Prohibition,
             stmt_kind: StatementKind::Select,
             check_fn: check_r002,
@@ -30,7 +28,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R003",
             name: "lock-table",
-            description: "LOCK TABLE may cause deadlock risks",
             level: WarningLevel::Prohibition,
             stmt_kind: StatementKind::All,
             check_fn: check_r003,
@@ -38,7 +35,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R004",
             name: "drop-cascade",
-            description: "DROP ... CASCADE may accidentally drop dependent objects",
             level: WarningLevel::Prohibition,
             stmt_kind: StatementKind::All,
             check_fn: check_r004,
@@ -46,7 +42,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R005",
             name: "implicit-type-conversion",
-            description: "Implicit type conversion in WHERE may cause index invalidation",
             level: WarningLevel::Prohibition,
             stmt_kind: StatementKind::Dml,
             check_fn: check_r005,
@@ -54,7 +49,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R006",
             name: "function-on-where-column",
-            description: "Function wrapping column in WHERE clauses defeats index usage",
             level: WarningLevel::Prohibition,
             stmt_kind: StatementKind::Dml,
             check_fn: check_r006,
@@ -62,7 +56,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R007",
             name: "like-leading-wildcard",
-            description: "LIKE with leading wildcard prevents index usage and triggers full table scan",
             level: WarningLevel::Prohibition,
             stmt_kind: StatementKind::Dml,
             check_fn: check_r007,
@@ -70,7 +63,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R008",
             name: "same-table-column-compare",
-            description: "Same-table column comparison in WHERE may not use indexes correctly",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Dml,
             check_fn: check_r008,
@@ -78,7 +70,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R009",
             name: "scalar-subquery-in-select",
-            description: "Scalar subquery in SELECT target list executes once per row",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Select,
             check_fn: check_r009,
@@ -86,7 +77,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R010",
             name: "function-side-effect",
-            description: "Functions should not contain explicit transaction control statements",
             level: WarningLevel::Prohibition,
             stmt_kind: StatementKind::All,
             check_fn: check_r010,

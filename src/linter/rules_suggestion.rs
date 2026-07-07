@@ -11,7 +11,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "S001",
             name: "delete-full-table-use-truncate",
-            description: "Full-table DELETE can be replaced with TRUNCATE for faster space reclamation",
             level: WarningLevel::Suggestion,
             stmt_kind: StatementKind::Delete,
             check_fn: check_s001,
@@ -19,7 +18,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "S002",
             name: "limit-offset-use-cursor",
-            description: "OFFSET pagination performs poorly with large offsets; consider cursor-based pagination",
             level: WarningLevel::Suggestion,
             stmt_kind: StatementKind::Select,
             check_fn: check_s002,
@@ -27,7 +25,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "S005",
             name: "prefer-percent-type",
-            description: "PL/pgSQL variables should use %TYPE or %ROWTYPE anchoring for better maintainability",
             level: WarningLevel::Suggestion,
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_s005,
@@ -35,7 +32,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "S006",
             name: "limit-without-order-by",
-            description: "LIMIT without ORDER BY produces non-deterministic results",
             level: WarningLevel::Suggestion,
             stmt_kind: StatementKind::Select,
             check_fn: check_s006,
@@ -43,7 +39,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "S007",
             name: "explicit-type-for-literals",
-            description: "String literals in WHERE should use explicit type casting to avoid implicit conversion",
             level: WarningLevel::Suggestion,
             stmt_kind: StatementKind::Dml,
             check_fn: check_s007,
@@ -51,8 +46,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "S008",
             name: "complex-sql-consider-split",
-            description:
-                "Overly long SQL text may be difficult to maintain; consider splitting into simpler queries or CTEs",
             level: WarningLevel::Suggestion,
             stmt_kind: StatementKind::All,
             check_fn: check_s008,

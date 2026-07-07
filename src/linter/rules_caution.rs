@@ -11,7 +11,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C001",
             name: "hint-unknown",
-            description: "Unknown hint not in GaussDB known hint list will be silently ignored",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Dml,
             check_fn: check_c001,
@@ -19,7 +18,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C005",
             name: "hint-contradictory",
-            description: "Contradictory or mutually exclusive hints are present and may cause unexpected behavior",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Dml,
             check_fn: check_c005,
@@ -27,7 +25,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C006",
             name: "hint-table-not-in-from",
-            description: "Hint references a table not present in the FROM clause",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Dml,
             check_fn: check_c006,
@@ -35,7 +32,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C007",
             name: "update-without-where",
-            description: "UPDATE without WHERE clause may affect the entire table data",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Update,
             check_fn: check_c007,
@@ -43,7 +39,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C008",
             name: "delete-without-where",
-            description: "DELETE without WHERE clause will remove all table data",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Delete,
             check_fn: check_c008,
@@ -51,7 +46,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C009",
             name: "insert-no-column-list",
-            description: "INSERT without explicit target column list relies on table definition order",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Insert,
             check_fn: check_c009,
@@ -59,7 +53,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C010",
             name: "unlogged-table",
-            description: "UNLOGGED TABLE data is lost on crash or failover",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Ddl,
             check_fn: check_c010,
@@ -67,7 +60,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C011",
             name: "goto-statement",
-            description: "GOTO violates structured programming best practices; use IF/EXIT/CONTINUE instead",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_c011,
@@ -75,7 +67,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C012",
             name: "execute-concat-sql-injection",
-            description: "EXECUTE IMMEDIATE with string concatenation risks SQL injection; use USING parameterization",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_c012,
@@ -83,7 +74,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C013",
             name: "exception-swallow",
-            description: "WHEN OTHERS handler without re-raising silently swallows errors",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_c013,
@@ -91,7 +81,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C014",
             name: "pl-commit-rollback",
-            description: "COMMIT/ROLLBACK inside PL/pgSQL blocks complicates transaction control",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_c014,
@@ -99,7 +88,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C015",
             name: "select-for-update-blocking",
-            description: "SELECT ... FOR UPDATE without NOWAIT/SKIP LOCKED may cause long blocking",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Select,
             check_fn: check_c015,
@@ -107,7 +95,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C016",
             name: "autonomous-transaction",
-            description: "PRAGMA AUTONOMOUS_TRANSACTION creates independent transactions with high overhead",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_c016,
@@ -115,7 +102,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C017",
             name: "raise-in-exception-clears-variables",
-            description: "RAISE in EXCEPTION block clears all local variable values including OUT parameters",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_c017,
@@ -123,8 +109,6 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "C018",
             name: "excessive-insert-values",
-            description:
-                "Excessive INSERT VALUES rows may cause long transactions, lock contention, and high rollback costs",
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::Insert,
             check_fn: check_c018,

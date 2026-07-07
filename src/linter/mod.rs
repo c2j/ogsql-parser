@@ -285,7 +285,6 @@ pub struct IndexInfo {
 pub struct LintRuleEntry {
     pub id: &'static str,
     pub name: &'static str,
-    pub description: &'static str,
     pub level: WarningLevel,
     pub stmt_kind: StatementKind,
     pub check_fn: fn(
@@ -382,16 +381,6 @@ impl SqlLinter {
     pub fn config(&self) -> &LintConfig {
         &self.config
     }
-}
-
-/// Return metadata for all 53 lint rules without requiring a `LintConfig`.
-pub fn all_rules_metadata() -> Vec<LintRuleEntry> {
-    let mut linter = SqlLinter::new(LintConfig::default());
-    rules_prohibition::register(&mut linter);
-    rules_performance::register(&mut linter);
-    rules_caution::register(&mut linter);
-    rules_suggestion::register(&mut linter);
-    linter.rules
 }
 
 fn classify_statement(stmt: &Statement) -> StatementKind {
