@@ -408,7 +408,7 @@ fn token_display(t: &crate::TokenWithSpan) -> (String, String) {
 }
 
 fn is_warning(e: &crate::ParserError) -> bool {
-    crate::is_warning(e)
+    matches!(e, crate::ParserError::Warning { .. } | crate::ParserError::ReservedKeywordAsIdentifier { .. })
 }
 
 fn merge_error_detail(err: &crate::MergeSemanticError) -> String {

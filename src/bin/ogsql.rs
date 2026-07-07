@@ -3768,7 +3768,10 @@ fn cmd_json2sql(cli: &Cli) {
 }
 
 fn is_warning(e: &ogsql_parser::ParserError) -> bool {
-    ogsql_parser::is_warning(e)
+    matches!(
+        e,
+        ogsql_parser::ParserError::Warning { .. } | ogsql_parser::ParserError::ReservedKeywordAsIdentifier { .. }
+    )
 }
 
 fn merge_error_detail(err: &ogsql_parser::MergeSemanticError) -> String {
