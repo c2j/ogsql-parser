@@ -109,6 +109,15 @@ pub use token::tokenizer::{Tokenizer, TokenizerError};
 pub use token::{Keyword, SourceLocation, Span, Token, TokenWithSpan};
 pub use token_formatter::{CommaStyle, FormatConfig, KeywordCase};
 
+/// Returns `true` if a `ParserError` is a warning (not a hard error).
+///
+/// Warnings are `ParserError::Warning { .. }` and
+/// `ParserError::ReservedKeywordAsIdentifier { .. }`.
+/// Everything else is considered a hard error.
+pub fn is_warning(e: &ParserError) -> bool {
+    matches!(e, ParserError::Warning { .. } | ParserError::ReservedKeywordAsIdentifier { .. })
+}
+
 /// Translate JDBC `{call ...}` / `{? = call ...}` escape syntax to native `CALL` SQL.
 ///
 /// The core SQL parser only understands bare `CALL pkg.proc(args)`. JDBC escape

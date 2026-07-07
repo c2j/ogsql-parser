@@ -11,6 +11,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P001",
             name: "union-without-all",
+            description: "UNION without ALL performs unnecessary deduplication sorting",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Select,
             check_fn: check_p001,
@@ -18,6 +19,8 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P002",
             name: "not-in-subquery",
+            description:
+                "NOT IN (subquery) has poor performance and NULL value handling issues; use NOT EXISTS instead",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Dml,
             check_fn: check_p002,
@@ -25,6 +28,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P003",
             name: "in-list-too-large",
+            description: "Oversized IN lists cause slow parsing and poor performance; consider JOIN or temp table",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Dml,
             check_fn: check_p003,
@@ -32,6 +36,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P004",
             name: "or-to-union-all",
+            description: "Top-level OR in WHERE may cause the optimizer to abandon index usage; consider UNION ALL",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Dml,
             check_fn: check_p004,
@@ -39,6 +44,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P005",
             name: "now-function-non-pushable",
+            description: "now() and similar timestamp functions are non-pushable in distributed queries",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Dml,
             check_fn: check_p005,
@@ -46,6 +52,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P006",
             name: "count-star-large-table",
+            description: "COUNT(*) on large tables has poor performance; consider approximate statistics",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Select,
             check_fn: check_p006,
@@ -53,6 +60,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P007",
             name: "too-many-non-equi-joins",
+            description: "Excessive non-equi join conditions degrade query performance",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Select,
             check_fn: check_p007,
@@ -60,6 +68,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P008",
             name: "group-by-without-hashagg",
+            description: "GROUP BY without hash_agg hint may require work_mem tuning",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Select,
             check_fn: check_p008,
@@ -67,6 +76,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P009",
             name: "function-instead-of-case",
+            description: "NVL/NVL2/DECODE/IIF functions can be replaced with CASE expression for better performance",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Dml,
             check_fn: check_p009,
@@ -74,6 +84,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P010",
             name: "multi-column-update-subquery",
+            description: "Multi-column UPDATE from subquery is inefficient; consider JOIN-based UPDATE",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Update,
             check_fn: check_p010,
@@ -81,6 +92,8 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P011",
             name: "correlated-subquery",
+            description:
+                "Correlated subquery executes once per outer row causing N+1 performance issues; consider JOIN",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Dml,
             check_fn: check_p011,
@@ -88,6 +101,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P012",
             name: "unnecessary-distinct",
+            description: "DISTINCT may be unnecessary if the result set is already unique; verify with schema info",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Select,
             check_fn: check_p012,
@@ -95,6 +109,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P013",
             name: "cartesian-product",
+            description: "Missing join condition or explicit CROSS JOIN produces a Cartesian product",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Select,
             check_fn: check_p013,
@@ -102,6 +117,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P014",
             name: "deeply-nested-subquery",
+            description: "Deeply nested subqueries degrade performance; consider CTE or temp table",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Dml,
             check_fn: check_p014,
@@ -109,6 +125,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P015",
             name: "range-equals-same-value",
+            description: "BETWEEN with equal upper and lower bounds should be simplified to an equality condition",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Dml,
             check_fn: check_p015,
@@ -116,6 +133,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P016",
             name: "update-from-no-join-condition",
+            description: "UPDATE FROM without WHERE clause may produce unintended Cartesian product updates",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Update,
             check_fn: check_p016,
@@ -123,6 +141,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P017",
             name: "merge-without-unique-index",
+            description: "MERGE statement ON condition requires a unique index for deterministic behavior",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Merge,
             check_fn: check_p017,
@@ -130,6 +149,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P018",
             name: "insert-select-no-columns",
+            description: "INSERT ... SELECT without explicit target column list relies on column order",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Insert,
             check_fn: check_p018,
@@ -137,6 +157,8 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P019",
             name: "multi-table-update",
+            description:
+                "Multi-table UPDATE may produce unexpected results; consider splitting into single-table updates",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::Update,
             check_fn: check_p019,
@@ -144,6 +166,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P020",
             name: "insert-all-multi-table",
+            description: "INSERT ALL/FIRST multi-table insert should be evaluated for simplification to single INSERT",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::All,
             check_fn: check_p020,
@@ -151,6 +174,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P021",
             name: "row-by-row-insert-in-loop",
+            description: "Row-by-row INSERT inside PL/pgSQL loop should use FORALL bulk operations",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_p021,
@@ -158,6 +182,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P022",
             name: "explain-in-production",
+            description: "EXPLAIN statements should not appear in production code",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::All,
             check_fn: check_p022,
@@ -165,6 +190,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "P023",
             name: "connect-by-performance",
+            description: "CONNECT BY hierarchical queries may degrade severely with large datasets or deep recursion",
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::All,
             check_fn: check_p023,
