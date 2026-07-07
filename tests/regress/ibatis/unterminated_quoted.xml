@@ -1,0 +1,21 @@
+<!-- description: Two select statements with if conditions -->
+<!-- statements: 2 -->
+<!-- namespace: test -->
+<!-- flat-contains: SELECT, FROM users, WHERE -->
+<!-- has-dynamic: true -->
+<mapper namespace="test">
+    <select id="findByName">
+        SELECT id FROM users
+        WHERE 1=1
+        <if test="name != null">
+            AND name = 'AAA'
+        </if>
+    </select>
+    <select id="findByName1">
+        SELECT id FROM users
+        WHERE 1=1
+        <if test="name != null">
+            AND name = 'AAA'"
+        </if>
+    </select>
+</mapper>

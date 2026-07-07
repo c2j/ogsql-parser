@@ -1,3 +1,9 @@
+<!-- description: Foreach with unclosed </foreach tag (missing >), XML parser treats it as text content -->
+<!-- statements: 1 -->
+<!-- namespace: t -->
+<!-- flat-contains: SELECT, FROM, WHERE -->
+<!-- params: i -->
+<!-- has-dynamic: true -->
 <mapper namespace="t">
     <select id="q1">
         SELECT * FROM t WHERE

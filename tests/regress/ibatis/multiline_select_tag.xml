@@ -1,3 +1,8 @@
+<!-- description: Select tag spanning multiple lines with parameterType and resultType -->
+<!-- statements: 1 -->
+<!-- namespace: t -->
+<!-- flat-contains: SELECT 1 -->
+<!-- has-dynamic: false -->
 <mapper namespace="t">
     <select id="q1"
             parameterType="x"
