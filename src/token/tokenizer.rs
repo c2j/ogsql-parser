@@ -5,18 +5,18 @@ use super::{SourceLocation, Span, Token, TokenWithSpan};
 /// Errors returned by [`Tokenizer::tokenize`](Tokenizer::tokenize).
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize, serde::Deserialize)]
 pub enum TokenizerError {
-    #[error("unterminated string literal at position {0}")]
-    UnterminatedString(usize),
-    #[error("unterminated block comment at position {0}")]
-    UnterminatedComment(usize),
-    #[error("unterminated dollar-quoted string at position {0}")]
-    UnterminatedDollarString(usize),
-    #[error("unterminated quoted identifier at position {0}")]
-    UnterminatedQuotedIdentifier(usize),
-    #[error("invalid character {0:?} at position {1}")]
-    InvalidCharacter(char, usize),
-    #[error("unexpected end of input at position {position}: expected {expected}")]
-    UnexpectedEof { expected: String, position: usize },
+    #[error("unterminated string literal at line {}, column {}", .0.line, .0.column)]
+    UnterminatedString(SourceLocation),
+    #[error("unterminated block comment at line {}, column {}", .0.line, .0.column)]
+    UnterminatedComment(SourceLocation),
+    #[error("unterminated dollar-quoted string at line {}, column {}", .0.line, .0.column)]
+    UnterminatedDollarString(SourceLocation),
+    #[error("unterminated quoted identifier at line {}, column {}", .0.line, .0.column)]
+    UnterminatedQuotedIdentifier(SourceLocation),
+    #[error("invalid character {char:?} at line {}, column {}", .location.line, .location.column)]
+    InvalidCharacter { char: char, location: SourceLocation },
+    #[error("unexpected end of input at line {}, column {}: expected {expected}", .location.line, .location.column)]
+    UnexpectedEof { expected: String, location: SourceLocation },
 }
 
 /// SQL lexical analyzer. Converts a raw SQL string into [`TokenWithSpan`] tokens.
@@ -70,6 +70,21 @@ impl<'a> Tokenizer<'a> {
 
     fn current_location(&self) -> SourceLocation {
         SourceLocation { line: self.line, column: self.pos - self.line_start + 1, offset: self.pos }
+    }
+
+    /// Compute a `SourceLocation` for any byte offset in the input.
+    /// Used when errors must be reported at a past position (not `self.pos`).
+    fn location_at(&self, offset: usize) -> SourceLocation {
+        let offset = offset.min(self.input.len());
+        let mut line = 1usize;
+        let mut line_start = 0;
+        for (i, c) in self.input[..offset].char_indices() {
+            if c == '\n' {
+                line += 1;
+                line_start = i + c.len_utf8();
+            }
+        }
+        SourceLocation { line, column: offset - line_start + 1, offset }
     }
 
     /// Tokenizes the input SQL into a vector of tokens with location metadata.
@@ -185,8 +200,8 @@ impl<'a> Tokenizer<'a> {
                         self.pending_comment = Some(content);
                         return Ok(());
                     } else {
-                        let saved_pos = self.pos;
-                        self.skip_block_comment(saved_pos)?;
+                        let err_loc = self.current_location();
+                        self.skip_block_comment(err_loc)?;
                     }
                 }
                 _ => return Ok(()),
@@ -213,11 +228,11 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn skip_block_comment(&mut self, start: usize) -> Result<(), TokenizerError> {
+    fn skip_block_comment(&mut self, err_loc: SourceLocation) -> Result<(), TokenizerError> {
         let mut depth = 1;
         while depth > 0 {
             match self.advance() {
-                None => return Err(TokenizerError::UnterminatedComment(start)),
+                None => return Err(TokenizerError::UnterminatedComment(err_loc)),
                 Some('/') => {
                     if self.peek() == Some('*') {
                         self.advance();
@@ -766,11 +781,11 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn scan_string(&mut self) -> Result<String, TokenizerError> {
-        let mut result = String::new();
-        let start = self.pos;
+        let mut result = String::from("");
+        let start_loc = self.current_location();
         loop {
             match self.advance() {
-                None => return Err(TokenizerError::UnterminatedString(start)),
+                None => return Err(TokenizerError::UnterminatedString(start_loc)),
                 Some('\'') => {
                     if self.peek() == Some('\'') {
                         self.advance();
@@ -792,10 +807,10 @@ impl<'a> Tokenizer<'a> {
 
     fn scan_escape_string(&mut self) -> Result<String, TokenizerError> {
         let mut result = String::new();
-        let start = self.pos;
+        let start_loc = self.current_location();
         loop {
             match self.advance() {
-                None => return Err(TokenizerError::UnterminatedString(start)),
+                None => return Err(TokenizerError::UnterminatedString(start_loc)),
                 Some('\'') => {
                     if self.peek() == Some('\'') {
                         self.advance();
@@ -805,7 +820,7 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
                 Some('\\') => match self.advance() {
-                    None => return Err(TokenizerError::UnterminatedString(start)),
+                    None => return Err(TokenizerError::UnterminatedString(start_loc)),
                     Some('n') => result.push('\n'),
                     Some('t') => result.push('\t'),
                     Some('r') => result.push('\r'),
@@ -832,11 +847,10 @@ impl<'a> Tokenizer<'a> {
 
     fn scan_quoted_identifier(&mut self) -> Result<String, TokenizerError> {
         let mut result = String::new();
-        let start = self.pos;
-        let _start_line = self.line;
+        let start_loc = self.current_location();
         loop {
             match self.advance() {
-                None => return Err(TokenizerError::UnterminatedQuotedIdentifier(start)),
+                None => return Err(TokenizerError::UnterminatedQuotedIdentifier(start_loc)),
                 Some('"') => {
                     if self.peek() == Some('"') {
                         self.advance();
@@ -846,9 +860,7 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
                 Some('\n') => {
-                    // Deliberately deviate from PostgreSQL: require same-line closure
-                    // to prevent cascade misparse. Remove this branch to allow multi-line.
-                    return Err(TokenizerError::UnterminatedQuotedIdentifier(start));
+                    return Err(TokenizerError::UnterminatedQuotedIdentifier(start_loc));
                 }
                 Some(c) => result.push(c),
             }
@@ -859,6 +871,7 @@ impl<'a> Tokenizer<'a> {
         // MyBatis raw expression: ${expr}
         if self.mybatis_params && self.peek() == Some('{') {
             let dollar_pos = self.pos - 1; // position of '$' (already consumed)
+            let dollar_loc = self.location_at(dollar_pos);
             self.advance(); // consume '{'
             let content_start = self.pos;
             let mut depth = 1;
@@ -877,7 +890,7 @@ impl<'a> Tokenizer<'a> {
                     _ => {}
                 }
             }
-            return Err(TokenizerError::UnterminatedString(dollar_pos));
+            return Err(TokenizerError::UnterminatedString(dollar_loc));
         }
 
         if let Some(&c) = self.chars.peek() {
@@ -912,6 +925,7 @@ impl<'a> Tokenizer<'a> {
 
     fn scan_mybatis_param(&mut self) -> Result<Token, TokenizerError> {
         let start = self.pos; // position of '#'
+        let start_loc = self.current_location();
         self.advance(); // consume '#'
         self.advance(); // consume '{'
         let mut depth = 1;
@@ -930,11 +944,11 @@ impl<'a> Tokenizer<'a> {
                 _ => {}
             }
         }
-        Err(TokenizerError::UnterminatedString(start))
+        Err(TokenizerError::UnterminatedString(start_loc))
     }
 
     fn scan_dollar_string_content(&mut self, delimiter: &str) -> Result<String, TokenizerError> {
-        let start = self.pos;
+        let start_loc = self.current_location();
         let delim_chars: Vec<char> = delimiter.chars().collect();
         let delim_len = delim_chars.len();
         let mut result = String::with_capacity(256);
@@ -942,7 +956,7 @@ impl<'a> Tokenizer<'a> {
 
         loop {
             match self.advance() {
-                None => return Err(TokenizerError::UnterminatedDollarString(start)),
+                None => return Err(TokenizerError::UnterminatedDollarString(start_loc)),
                 Some(c) => {
                     window.push_back(c);
                     if window.len() > delim_len {
