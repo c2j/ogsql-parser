@@ -297,4 +297,112 @@ mod validate_xml_tests {
             stderr
         );
     }
+
+    // ── CSV error attribution regression tests ──
+
+    /// Regression: CSV error attribution for multi-statement XML mappers.
+    ///
+    /// In a mapper with 3 statements where q2 has a parse error on a different line
+    /// from its XML tag, the CSV output should attribute the error only to q2.
+    ///
+    /// Bug (current behavior): `error_line(e) == stmt.line` exact-match filter
+    /// (src/bin/ogsql.rs:5382) fails when content line != tag line — the error
+    /// is silently dropped and q2 appears VALID with 0 errors.
+    ///
+    /// Correct behavior: each statement reads errors from its own `parse_result`,
+    /// like `output_csv_xml_rows` does for `parse-xml --csv`.
+    #[test]
+    fn test_validate_xml_csv_multi_statement_error_attribution() {
+        // XML with 3 statements; q2 has invalid SQL on a different line from its tag.
+        let xml = r#"<mapper namespace="test">
+    <select id="q1">SELECT 1</select>
+    <select id="q2">
+        SELECT 1 FROM
+    </select>
+    <select id="q3">SELECT 2</select>
+</mapper>"#;
+        let (stdout, _success) = run_validate_xml(xml, &["validate-xml", "--csv"]);
+
+        // Verify header
+        assert!(
+            stdout.contains("file,directory,line,type,name,parent"),
+            "CSV should start with header, got:\n{}",
+            stdout
+        );
+
+        // CSV should contain exactly 3 statement IDs
+        let q1_count = stdout.matches("q1").count();
+        let q2_count = stdout.matches("q2").count();
+        let q3_count = stdout.matches("q3").count();
+        assert_eq!(q1_count, 1, "q1 should appear exactly once in CSV, got:\n{}", stdout);
+        assert_eq!(q2_count, 1, "q2 should appear exactly once in CSV, got:\n{}", stdout);
+        assert_eq!(q3_count, 1, "q3 should appear exactly once in CSV, got:\n{}", stdout);
+
+        // CSV should contain 2 VALID (q1, q3) and 1 INVALID (q2)
+        let valid_rows: Vec<&str> = stdout.lines().filter(|l| l.contains(",VALID,")).collect();
+        assert_eq!(valid_rows.len(), 2, "Expected 2 VALID (q1, q3), got {}.\nstdout:\n{}", valid_rows.len(), stdout);
+
+        let invalid_rows: Vec<&str> = stdout.lines().filter(|l| l.contains(",INVALID,")).collect();
+        assert_eq!(invalid_rows.len(), 1, "Expected 1 INVALID (q2), got {}.\nstdout:\n{}", invalid_rows.len(), stdout);
+
+        // q2's parse error should appear exactly once in CSV
+        let error_msg_count = stdout.split(',').filter(|f| f.contains("unexpected")).count();
+        assert_eq!(
+            error_msg_count, 1,
+            "Expected 1 error message for q2, got {}.\nstdout:\n{}",
+            error_msg_count, stdout
+        );
+    }
+
+    /// Regression: MERGE validation errors are NOT amplified to all rows.
+    ///
+    /// A single MERGE semantic validation error (WHEN MATCHED THEN DELETE not
+    /// supported) should appear on exactly 1 CSV row, not N rows.
+    ///
+    /// Bug (current behavior): `UnsupportedSyntax` errors are NOT handled by
+    /// `error_line()` (falls to `_ => 0`), so `error_line(e) == 0` filter matches
+    /// EVERY statement row — N-fold amplification.
+    #[test]
+    fn test_validate_xml_csv_merge_validation_error_not_amplified() {
+        let xml = r#"<mapper namespace="test">
+    <select id="q1">SELECT 1</select>
+    <insert id="q2">
+        MERGE INTO target t
+        USING source s ON t.id = s.id
+        WHEN MATCHED THEN DELETE
+    </insert>
+    <select id="q3">SELECT 2</select>
+</mapper>"#;
+        let (stdout, _success) = run_validate_xml(xml, &["validate-xml", "--csv"]);
+
+        // CSV should contain exactly 3 statement IDs
+        let q1_count = stdout.matches("q1").count();
+        let q2_count = stdout.matches("q2").count();
+        let q3_count = stdout.matches("q3").count();
+        assert_eq!(q1_count, 1, "q1 should appear once in CSV, got:\n{}", stdout);
+        assert_eq!(q2_count, 1, "q2 should appear once in CSV, got:\n{}", stdout);
+        assert_eq!(q3_count, 1, "q3 should appear once in CSV, got:\n{}", stdout);
+
+        // The error message "unsupported syntax" should appear exactly once (in the global row)
+        let error_msg = "unsupported syntax";
+        let error_count = stdout.matches(error_msg).count();
+        assert_eq!(
+            error_count, 1,
+            "Expected 1 MERGE validation error (global row), got {}.\nstdout:\n{}",
+            error_count, stdout
+        );
+
+        // 1 INVALID (global line=0 summary row) + 3 VALID (per-statement rows)
+        let invalid_rows: Vec<&str> = stdout.lines().filter(|l| l.contains(",INVALID,")).collect();
+        assert_eq!(
+            invalid_rows.len(),
+            1,
+            "Expected 1 INVALID (global row), got {}.\nstdout:\n{}",
+            invalid_rows.len(),
+            stdout
+        );
+
+        // Verify header is present (sanity check)
+        assert!(stdout.contains("file,directory,line,type,name"), "CSV output missing header");
+    }
 }
