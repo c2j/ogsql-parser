@@ -5005,6 +5005,16 @@ fn ibatis_error_kind(err: &ogsql_parser::ibatis::error::IbatisError) -> &'static
 }
 
 #[cfg(feature = "ibatis")]
+fn is_likely_mapper_xml(bytes: &[u8]) -> bool {
+    let head = if bytes.len() > 4096 { &bytes[..4096] } else { bytes };
+    // Match <mapper or <sqlMap followed by a non-identifier byte.
+    // This avoids false positives on <mappers>, <sqlMapConfig>, etc.
+    head.windows(8).any(|w| {
+        (w[..7] == *b"<mapper" || w[..7] == *b"<sqlMap") && matches!(w[7], b' ' | b'>' | b'/' | b'\t' | b'\n' | b'\r')
+    }) || head.windows(16).any(|w| w == b"<!DOCTYPE mapper" || w == b"<!DOCTYPE sqlMap")
+}
+
+#[cfg(feature = "ibatis")]
 fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::path::PathBuf], stats: bool) {
     use std::path::Path;
 
@@ -5033,6 +5043,13 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
                 continue;
             }
         };
+
+        if !is_likely_mapper_xml(&bytes) {
+            if cli.verbose {
+                eprintln!("Skipping non-mapper XML: {}", path.display());
+            }
+            continue;
+        }
 
         let rel_dir =
             path.parent().and_then(|p| p.strip_prefix(root).ok()).map(|p| p.to_str().unwrap_or(".")).unwrap_or(".");
@@ -5614,6 +5631,13 @@ fn cmd_validate_xml_dir(
                 continue;
             }
         };
+
+        if !is_likely_mapper_xml(&bytes) {
+            if cli.verbose {
+                eprintln!("Skipping non-mapper XML: {}", path.display());
+            }
+            continue;
+        }
 
         let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let rel_dir = path
@@ -8133,5 +8157,81 @@ mod tests {
         let sql = "select 账号, データ, 데이터 from t using v_id";
         let pos = find_using_keyword_pos(sql);
         assert!(pos.is_some());
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_positive_mapper_tag() {
+        assert!(is_likely_mapper_xml(b"<mapper namespace=\"t\">"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_positive_sqlmap_tag() {
+        assert!(is_likely_mapper_xml(b"<sqlMap namespace=\"t\">"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_positive_doctype_mapper() {
+        assert!(is_likely_mapper_xml(b"<!DOCTYPE mapper PUBLIC \"-//ibatis.apache.org//DTD Mapper 3.0//EN\" \"http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd\">"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_positive_doctype_sqlmap() {
+        assert!(is_likely_mapper_xml(b"<!DOCTYPE sqlMap PUBLIC \"-//ibatis.apache.org//DTD SQL Map Config 2.0//EN\" \"http://ibatis.apache.org/dtd/sql-map-config-2.dtd\">"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_mappers_plural_alone_does_not_match() {
+        // <mappers> without a <mapper child tag should not match
+        assert!(!is_likely_mapper_xml(b"<mappers></mappers>"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_sqlmapconfig_alone_does_not_match() {
+        // <sqlMapConfig> without a <sqlMap child tag should not match
+        assert!(!is_likely_mapper_xml(b"<sqlMapConfig></sqlMapConfig>"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_negative_pom_xml() {
+        assert!(!is_likely_mapper_xml(b"<project xmlns=\"http://maven.apache.org/POM/4.0.0\">"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_negative_web_xml() {
+        assert!(!is_likely_mapper_xml(b"<web-app xmlns=\"http://xmlns.jcp.org/xml/ns/javaee\">"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_negative_empty() {
+        assert!(!is_likely_mapper_xml(b""));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_negative_short_file() {
+        assert!(!is_likely_mapper_xml(b"abc"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_mappers_plural_with_inner_mapper_matches() {
+        // mybatis-config.xml references actual <mapper resource=...> tags
+        assert!(is_likely_mapper_xml(b"<mappers><mapper resource=\"a.xml\"/></mappers>"));
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[test]
+    fn test_is_likely_mapper_xml_self_closing_mapper_matches() {
+        // <mapper/> has the tag name, even if it's an empty/self-closing element
+        assert!(is_likely_mapper_xml(b"<mapper/>"));
     }
 }
