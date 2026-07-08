@@ -1,0 +1,8 @@
+<!-- description: SELECT * with GROUP BY is skipped -->
+<!-- nowarn: R012 -->
+<!-- statements: 1 -->
+<mapper namespace="r012">
+    <select id="test">
+        SELECT * FROM t1 GROUP BY col1 ORDER BY col2
+    </select>
+</mapper>

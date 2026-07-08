@@ -1,0 +1,8 @@
+<!-- description: ORDER BY column not in SELECT with DISTINCT -->
+<!-- warn: R011 -->
+<!-- statements: 1 -->
+<mapper namespace="r011">
+    <select id="test">
+        SELECT DISTINCT col1 FROM t1 ORDER BY col2
+    </select>
+</mapper>

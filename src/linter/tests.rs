@@ -1538,3 +1538,113 @@ fn r010_commit_only_no_dml_warns() {
     let w = lint(&stmts);
     assert!(has_rule(&w, "R010"), "function with only COMMIT (no DML) should still trigger R010");
 }
+
+// ── R011: ORDER BY with DISTINCT ──
+
+#[test]
+fn r011_distinct_order_by_column_in_select() {
+    let stmts = parse("SELECT DISTINCT a, b FROM t ORDER BY a");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R011"), "ORDER BY a with DISTINCT a,b should NOT trigger R011");
+}
+
+#[test]
+fn r011_distinct_order_by_column_not_in_select() {
+    let stmts = parse("SELECT DISTINCT a FROM t ORDER BY b");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R011"), "ORDER BY b with DISTINCT a should trigger R011");
+}
+
+#[test]
+fn r011_distinct_order_by_alias() {
+    let stmts = parse("SELECT DISTINCT a AS x FROM t ORDER BY x");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R011"), "ORDER BY alias should NOT trigger R011");
+}
+
+#[test]
+fn r011_distinct_order_by_positional() {
+    let stmts = parse("SELECT DISTINCT a, b FROM t ORDER BY 1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R011"), "ORDER BY 1 (positional) should NOT trigger R011");
+}
+
+#[test]
+fn r011_distinct_order_by_positional_out_of_range() {
+    let stmts = parse("SELECT DISTINCT a, b FROM t ORDER BY 3");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R011"), "ORDER BY 3 with only 2 columns should trigger R011");
+}
+
+#[test]
+fn r011_distinct_no_order_by_not_triggered() {
+    let stmts = parse("SELECT DISTINCT a FROM t");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R011"), "DISTINCT without ORDER BY should NOT trigger R011");
+}
+
+#[test]
+fn r011_order_by_no_distinct_not_triggered() {
+    let stmts = parse("SELECT a FROM t ORDER BY b");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R011"), "ORDER BY without DISTINCT should NOT trigger R011");
+}
+
+#[test]
+fn r011_distinct_star_skipped() {
+    // SELECT * expands to all columns — can't determine without schema
+    let stmts = parse("SELECT DISTINCT * FROM t ORDER BY a");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R011"), "SELECT DISTINCT * should be skipped (no false positive)");
+}
+
+// ── R012: ORDER BY with GROUP BY ──
+
+#[test]
+fn r012_group_by_order_by_column_in_select() {
+    let stmts = parse("SELECT a, b FROM t GROUP BY a, b ORDER BY a");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R012"), "ORDER BY a with GROUP BY a,b should NOT trigger R012");
+}
+
+#[test]
+fn r012_group_by_order_by_column_not_in_select() {
+    let stmts = parse("SELECT a FROM t GROUP BY a ORDER BY b");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R012"), "ORDER BY b with SELECT a should trigger R012");
+}
+
+#[test]
+fn r012_group_by_order_by_alias() {
+    let stmts = parse("SELECT a AS x, b FROM t GROUP BY a, b ORDER BY x");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R012"), "ORDER BY alias should NOT trigger R012");
+}
+
+#[test]
+fn r012_group_by_order_by_positional() {
+    let stmts = parse("SELECT a, b FROM t GROUP BY a, b ORDER BY 2");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R012"), "ORDER BY 2 (positional) should NOT trigger R012");
+}
+
+#[test]
+fn r012_group_by_no_order_by_not_triggered() {
+    let stmts = parse("SELECT a FROM t GROUP BY a");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R012"), "GROUP BY without ORDER BY should NOT trigger R012");
+}
+
+#[test]
+fn r012_order_by_no_group_by_not_triggered() {
+    let stmts = parse("SELECT a FROM t ORDER BY a");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R012"), "ORDER BY without GROUP BY should NOT trigger R012");
+}
+
+#[test]
+fn r012_group_by_star_skipped() {
+    let stmts = parse("SELECT * FROM t GROUP BY a ORDER BY b");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R012"), "SELECT * with GROUP BY should be skipped (no false positive)");
+}

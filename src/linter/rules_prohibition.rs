@@ -1,5 +1,7 @@
 use crate::ast::plpgsql::{PlBlock, PlStatement};
-use crate::ast::{Expr, InsertSource, PackageItem, SelectStatement, SelectTarget, Statement, StatementInfo};
+use crate::ast::{
+    Expr, GroupByItem, InsertSource, PackageItem, SelectStatement, SelectTarget, Statement, StatementInfo,
+};
 use crate::linter::type_helpers::{
     build_column_type_map, classify_type_family, literal_type_family, resolve_column_type,
 };
@@ -8,6 +10,7 @@ use crate::linter::{
     Confidence, LintConfig, LintRuleEntry, SqlLinter, SqlWarning, StatementKind, WarningLevel,
 };
 use crate::token::SourceLocation;
+use std::collections::HashSet;
 
 pub fn register(linter: &mut SqlLinter) {
     let rules: Vec<LintRuleEntry> = vec![
@@ -90,6 +93,22 @@ pub fn register(linter: &mut SqlLinter) {
             level: WarningLevel::Prohibition,
             stmt_kind: StatementKind::All,
             check_fn: check_r010,
+        },
+        LintRuleEntry {
+            id: "R011",
+            name: "order-by-distinct-mismatch",
+            description: "ORDER BY columns must be included in SELECT result columns when DISTINCT is used",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::Select,
+            check_fn: check_r011,
+        },
+        LintRuleEntry {
+            id: "R012",
+            name: "order-by-group-by-mismatch",
+            description: "ORDER BY columns must be included in SELECT result columns when GROUP BY is used",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::Select,
+            check_fn: check_r012,
         },
     ];
     for rule in rules {
@@ -968,6 +987,195 @@ fn sql_text_has_tx(text: &str) -> bool {
         || lower.starts_with("release savepoint")
         || lower.starts_with("rollback to savepoint")
         || lower.starts_with("set transaction")
+}
+
+// ── R011: ORDER BY with DISTINCT — columns must appear in SELECT targets ──
+
+fn check_r011(
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    if let Statement::Select(s) = &curr_stmt.statement {
+        if !s.distinct || s.order_by.is_empty() {
+            return;
+        }
+        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+        let extra_names = std::collections::HashSet::new();
+        check_order_by_select_targets(
+            s,
+            loc,
+            "DISTINCT",
+            "R011",
+            "order-by-distinct-mismatch",
+            &extra_names,
+            confidence,
+            warnings,
+        );
+    }
+}
+
+// ── R012: ORDER BY with GROUP BY — columns must appear in SELECT targets ──
+
+fn check_r012(
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    if let Statement::Select(s) = &curr_stmt.statement {
+        if s.group_by.is_empty() || s.order_by.is_empty() {
+            return;
+        }
+        // Collect GROUP BY column names — they are acceptable ORDER BY targets
+        // even when absent from SELECT (SQL standard allows this).
+        let extra_names: std::collections::HashSet<String> = s
+            .group_by
+            .iter()
+            .filter_map(|gb| {
+                if let GroupByItem::Expr(Expr::ColumnRef(name)) = gb {
+                    name.last().map(|n| n.to_lowercase())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+        check_order_by_select_targets(
+            s,
+            loc,
+            "GROUP BY",
+            "R012",
+            "order-by-group-by-mismatch",
+            &extra_names,
+            confidence,
+            warnings,
+        );
+    }
+}
+
+/// Shared check: verify all ORDER BY expressions are present in the SELECT target list.
+fn check_order_by_select_targets(
+    select: &SelectStatement,
+    loc: crate::token::SourceLocation,
+    clause: &str,                                    // "DISTINCT" or "GROUP BY"
+    rule_id: &str,                                   // "R011" or "R012"
+    rule_name: &str,                                 // rule name for SqlWarning
+    extra_names: &std::collections::HashSet<String>, // additional acceptable column names (e.g. GROUP BY columns for R012)
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    // If any target is Star (SELECT *, t.*) or a QualifiedStar expression,
+    // we cannot determine the full column set without schema — skip.
+    let has_star = select
+        .targets
+        .iter()
+        .any(|t| matches!(t, SelectTarget::Star(_) | SelectTarget::Expr(Expr::QualifiedStar(_), _)));
+    if has_star {
+        return;
+    }
+
+    // Collect output column identities from SELECT targets,
+    // plus any additional acceptable names (e.g. GROUP BY columns).
+    let output_names: HashSet<String> = {
+        let mut names: HashSet<String> = select
+            .targets
+            .iter()
+            .flat_map(|t| {
+                let mut ns = Vec::new();
+                match t {
+                    SelectTarget::Expr(Expr::ColumnRef(ref name), alias) => {
+                        if let Some(last) = name.last() {
+                            ns.push(last.to_lowercase());
+                        }
+                        if let Some(a) = alias {
+                            ns.push(a.to_lowercase());
+                        }
+                    }
+                    SelectTarget::Expr(_, alias) => {
+                        if let Some(a) = alias {
+                            ns.push(a.to_lowercase());
+                        }
+                    }
+                    SelectTarget::Star(_) => {} // handled above
+                }
+                ns
+            })
+            .collect();
+        names.extend(extra_names.iter().cloned());
+        names
+    };
+
+    for order_item in &select.order_by {
+        let is_covered = order_by_item_covered(&order_item.expr, &output_names, select.targets.len());
+        if !is_covered {
+            let expr_str = format_expr_brief(&order_item.expr);
+            let suggestion = format!("将 \"{expr_str}\" 添加到 SELECT 结果集中，或使用列别名引用");
+            warnings.push(make_warning(
+                WarningLevel::Prohibition,
+                rule_id,
+                rule_name,
+                format!("ORDER BY 表达式 \"{expr_str}\" 未包含在 SELECT 结果集中，与 {clause} 一起使用时可能导致错误"),
+                Some(&suggestion),
+                loc,
+                Some("SELECT 规范"),
+                confidence,
+            ));
+        }
+    }
+}
+
+/// Check whether a single ORDER BY expression is covered by the SELECT output.
+fn order_by_item_covered(expr: &Expr, output_names: &HashSet<String>, target_count: usize) -> bool {
+    match expr {
+        // Positional reference: ORDER BY 1, ORDER BY 2, etc. (1-based)
+        Expr::Literal(crate::ast::Literal::Integer(n)) => {
+            if *n >= 1 {
+                return (*n as usize) <= target_count;
+            }
+            false
+        }
+        // Column reference: check by name
+        Expr::ColumnRef(name) | Expr::ColumnRefOuterJoin(name) => {
+            if let Some(last) = name.last() {
+                let lower = last.to_lowercase();
+                return output_names.contains(&lower);
+            }
+            false
+        }
+        // For other expressions, check if they match an alias
+        _ => {
+            // Expressions don't have a simple name, so they're only covered
+            // if a SELECT target alias matches (unlikely for arbitrary expressions)
+            false
+        }
+    }
+}
+
+/// Produce a brief string representation of an expression for use in warning messages.
+fn format_expr_brief(expr: &Expr) -> String {
+    match expr {
+        Expr::ColumnRef(name) | Expr::ColumnRefOuterJoin(name) => name.join("."),
+        Expr::Literal(crate::ast::Literal::Integer(n)) => n.to_string(),
+        Expr::Literal(crate::ast::Literal::String(s)) => format!("'{s}'"),
+        Expr::Literal(crate::ast::Literal::Boolean(b)) => b.to_string(),
+        Expr::Literal(crate::ast::Literal::Null) => "NULL".to_string(),
+        Expr::Literal(lit) => format!("{lit:?}"), // fallback for Float/Bit/Hex/etc.
+        Expr::FunctionCall { name, .. } => {
+            format!("{}()", name.join("."))
+        }
+        _ => {
+            // Fallback: use a generic placeholder
+            "<expression>".to_string()
+        }
+    }
 }
 
 fn extract_where_clause(stmt: &Statement) -> Option<&Expr> {

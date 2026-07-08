@@ -52,7 +52,7 @@ fn fixtures_dir() -> PathBuf {
 }
 
 fn discover_fixtures() -> Vec<Fixture> {
-    let dir = fixtures_dir();
+    let dir = fixtures_dir().join("sql");
     let mut results = Vec::new();
     collect_fixtures(&dir, "", &mut results);
     results.sort_by(|a, b| a.name.cmp(&b.name));
@@ -207,7 +207,7 @@ fn lint_sql(sql: &str, schema: Option<&SchemaMap>, check_parse_warnings: bool) -
 #[test]
 fn all_regress_fixtures() {
     let fixtures = discover_fixtures();
-    assert!(!fixtures.is_empty(), "未发现 regress fixture 文件 (tests/regress/*.sql)");
+    assert!(!fixtures.is_empty(), "未发现 regress fixture 文件 (tests/regress/sql/*.sql)");
 
     for f in &fixtures {
         let label = format!("{} ({})", f.name, f.description);
@@ -304,7 +304,7 @@ mod ibatis_regress {
     #[test]
     fn all_regress_xml_fixtures() {
         let fixtures = discover_xml_fixtures();
-        assert!(!fixtures.is_empty(), "未发现 XML regress fixture 文件 (tests/regress/**/*.xml)");
+        assert!(!fixtures.is_empty(), "未发现 XML regress fixture 文件 (tests/regress/ibatis/*.xml)");
 
         for f in &fixtures {
             let label = format!("{} ({})", f.name, f.description);
@@ -358,7 +358,6 @@ mod ibatis_regress {
 
 #[cfg(feature = "ibatis")]
 mod xml_fixture {
-    use std::collections::BTreeMap;
     use std::fs;
     use std::path::PathBuf;
 
@@ -374,7 +373,7 @@ mod xml_fixture {
     }
 
     pub fn discover_xml_fixtures() -> Vec<XmlFixture> {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("regress");
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("regress").join("ibatis");
         let mut results = Vec::new();
         collect_xml_fixtures(&dir, "", &mut results);
         results.sort_by(|a, b| a.name.cmp(&b.name));
@@ -403,7 +402,7 @@ mod xml_fixture {
             let raw =
                 fs::read_to_string(&path).unwrap_or_else(|e| panic!("无法读取 XML fixture '{}': {e}", path.display()));
 
-            let (meta, xml) = parse_xml_metadata(&raw);
+            let (meta, xml) = super::parse_xml_metadata(&raw);
 
             let description = meta
                 .get("description")
@@ -436,31 +435,359 @@ mod xml_fixture {
             });
         }
     }
+}
 
-    fn parse_xml_metadata(raw: &str) -> (BTreeMap<String, String>, String) {
-        let mut meta: BTreeMap<String, String> = BTreeMap::new();
-        let mut content_start = 0usize;
+/// Parse `<!-- key: value -->` XML comment metadata from the top of a file.
+fn parse_xml_metadata(raw: &str) -> (BTreeMap<String, String>, String) {
+    let mut meta: BTreeMap<String, String> = BTreeMap::new();
+    let mut content_start = 0usize;
 
-        for line in raw.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                content_start += line.len() + 1;
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            content_start += line.len() + 1;
+            continue;
+        }
+        if let Some(inner) = trimmed.strip_prefix("<!--").and_then(|s| s.strip_suffix("-->")) {
+            let inner = inner.trim();
+            if let Some((key, value)) = inner.split_once(':') {
+                let k = key.trim().to_lowercase();
+                let v = value.trim().to_string();
+                meta.entry(k).and_modify(|e| e.push_str(&format!(",{v}"))).or_insert(v);
+            }
+            content_start += line.len() + 1;
+        } else {
+            break;
+        }
+    }
+
+    let rest = if content_start < raw.len() { raw[content_start..].trim().to_string() } else { String::new() };
+    (meta, rest)
+}
+
+/// Parse `// key: value` Java-style line comment metadata from the top of a file.
+fn parse_java_metadata(raw: &str) -> (BTreeMap<String, String>, String) {
+    let mut meta: BTreeMap<String, String> = BTreeMap::new();
+    let mut content_start = 0usize;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            content_start += line.len() + 1;
+            continue;
+        }
+        if let Some(stripped) = trimmed.strip_prefix("// ") {
+            if let Some((key, value)) = stripped.split_once(':') {
+                let k = key.trim().to_lowercase();
+                let v = value.trim().to_string();
+                meta.entry(k).and_modify(|e| e.push_str(&format!(",{v}"))).or_insert(v);
+            }
+            content_start += line.len() + 1;
+        } else {
+            break;
+        }
+    }
+
+    let rest = if content_start < raw.len() { raw[content_start..].trim().to_string() } else { String::new() };
+    (meta, rest)
+}
+
+// ── XML lint fixture regression tests ────────────────────
+//
+// Scans `tests/regress/xml/` for `.xml` fixture files containing mapper SQL.
+// Each file header declares expected behaviour using XML comments:
+//
+// ```xml
+// <!-- description: ORDER BY column not in SELECT with DISTINCT -->
+// <!-- warn: R011 -->
+// <!-- statements: 1 -->
+// <mapper>...</mapper>
+// ```
+//
+// - `<!-- description: -->` (required) human-readable test name
+// - `<!-- statements: N -->` expected number of parsed statements
+// - `<!-- warn: R011 -->`       (repeatable) linter rule MUST fire
+// - `<!-- nowarn: R011 -->`     (repeatable) linter rule must NOT fire
+
+#[cfg(feature = "ibatis")]
+mod xml_lint_regress {
+    use std::fs;
+    use std::path::PathBuf;
+
+    use ogsql_parser::ibatis;
+    use ogsql_parser::linter::{Confidence, LintConfig, SqlLinter};
+    use ogsql_parser::{Parser, ParserError};
+
+    struct XmlLintFixture {
+        name: String,
+        description: String,
+        xml: String,
+        statements: usize,
+        warn: Vec<String>,
+        nowarn: Vec<String>,
+    }
+
+    fn discover_xml_lint_fixtures() -> Vec<XmlLintFixture> {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("regress").join("xml");
+        let mut results = Vec::new();
+        collect_xml_lint_fixtures(&dir, "", &mut results);
+        results.sort_by(|a, b| a.name.cmp(&b.name));
+        results
+    }
+
+    fn collect_xml_lint_fixtures(dir: &PathBuf, prefix: &str, results: &mut Vec<XmlLintFixture>) {
+        let entries = match fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let sub = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                let next = if prefix.is_empty() { sub.to_string() } else { format!("{prefix}/{sub}") };
+                collect_xml_lint_fixtures(&path, &next, results);
                 continue;
             }
-            if let Some(inner) = trimmed.strip_prefix("<!--").and_then(|s| s.strip_suffix("-->")) {
-                let inner = inner.trim();
-                if let Some((key, value)) = inner.split_once(':') {
-                    let k = key.trim().to_lowercase();
-                    let v = value.trim().to_string();
-                    meta.entry(k).and_modify(|e| e.push_str(&format!(",{v}"))).or_insert(v);
-                }
-                content_start += line.len() + 1;
-            } else {
-                break;
+            if path.extension().and_then(|s| s.to_str()) != Some("xml") {
+                continue;
             }
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown");
+            let name = if prefix.is_empty() { stem.to_string() } else { format!("{prefix}/{stem}") };
+            let raw = fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("无法读取 XML lint fixture '{}': {e}", path.display()));
+
+            let (meta, xml) = super::parse_xml_metadata(&raw);
+
+            let description = meta
+                .get("description")
+                .cloned()
+                .unwrap_or_else(|| panic!("[{name}] 缺少 '<!-- description: -->' 元数据"));
+            let statements: usize = meta
+                .get("statements")
+                .and_then(|s| s.trim().parse().ok())
+                .unwrap_or_else(|| panic!("[{name}] 缺少或无效的 '<!-- statements: N -->'"));
+            let warn = super::split_ids(meta.get("warn").cloned().unwrap_or_default().as_str());
+            let nowarn = super::split_ids(meta.get("nowarn").cloned().unwrap_or_default().as_str());
+
+            results.push(XmlLintFixture { name, description, xml, statements, warn, nowarn });
+        }
+    }
+
+    #[test]
+    fn all_regress_xml_lint_fixtures() {
+        let fixtures = discover_xml_lint_fixtures();
+        assert!(!fixtures.is_empty(), "未发现 XML lint regress fixture 文件 (tests/regress/xml/*.xml)");
+
+        for f in &fixtures {
+            let label = format!("{} ({})", f.name, f.description);
+
+            let result = ibatis::parse_mapper_bytes(f.xml.as_bytes());
+            assert!(result.errors.is_empty(), "[{label}] XML 解析出错: {:?}", result.errors);
+
+            assert_eq!(
+                result.statements.len(),
+                f.statements,
+                "[{label}] 期望 {} 个语句，实际 {} 个",
+                f.statements,
+                result.statements.len()
+            );
+
+            // Collect all rule_ids from linting each statement's flat_sql
+            let mut rule_ids: Vec<String> = Vec::new();
+            for stmt in &result.statements {
+                let (infos, errors) = Parser::parse_sql(&stmt.flat_sql);
+                assert!(!infos.is_empty(), "[{label}] SQL 解析未生成任何 statement\n  flat_sql: {}", stmt.flat_sql);
+                let fatal_errors: Vec<_> = errors
+                    .iter()
+                    .filter(|e| {
+                        !matches!(e, ParserError::Warning { .. } | ParserError::ReservedKeywordAsIdentifier { .. })
+                    })
+                    .collect();
+                assert!(
+                    fatal_errors.is_empty(),
+                    "[{label}] SQL 解析失败: {fatal_errors:?}\n  flat_sql: {}",
+                    stmt.flat_sql
+                );
+
+                let linter = SqlLinter::with_default_rules(LintConfig::default());
+                let warnings = linter.lint(&infos, None, Confidence::Full);
+                for w in &warnings {
+                    if !rule_ids.contains(&w.rule_id) {
+                        rule_ids.push(w.rule_id.clone());
+                    }
+                }
+            }
+
+            for id in &f.warn {
+                assert!(
+                    rule_ids.contains(id),
+                    "[{label}] 期望规则 {id} 触发，实际未触发\n  实际触发的规则: {:?}",
+                    rule_ids
+                );
+            }
+
+            for id in &f.nowarn {
+                assert!(
+                    !rule_ids.contains(id),
+                    "[{label}] 期望规则 {id} 不触发，实际触发了\n  实际触发的规则: {:?}",
+                    rule_ids
+                );
+            }
+
+            eprintln!("  ✓ {label}");
         }
 
-        let xml = if content_start < raw.len() { raw[content_start..].trim().to_string() } else { String::new() };
-        (meta, xml)
+        eprintln!("  [regress-xml-lint] {} fixture(s) passed", fixtures.len());
+    }
+}
+
+// ── Java annotation fixture regression tests ─────────────
+//
+// Scans `tests/regress/java/` for `.java` fixture files containing SQL
+// annotations.  Each file header declares expected behaviour using `//` comments:
+//
+// ```java
+// // description: ORDER BY column not in SELECT with DISTINCT in Java annotation
+// // warn: R011
+// // statements: 1
+// public interface UserMapper { ... }
+// ```
+//
+// - `// description:`  (required) human-readable test name
+// - `// statements: N` expected number of extracted SQL statements
+// - `// warn: R011`       (repeatable) linter rule MUST fire
+// - `// nowarn: R011`     (repeatable) linter rule must NOT fire
+
+#[cfg(feature = "java")]
+mod java_regress {
+    use std::fs;
+    use std::path::PathBuf;
+
+    use ogsql_parser::java::{self, JavaExtractConfig};
+    use ogsql_parser::linter::{Confidence, LintConfig, SqlLinter};
+    use ogsql_parser::{Parser, ParserError};
+
+    struct JavaFixture {
+        name: String,
+        description: String,
+        source: String,
+        statements: usize,
+        warn: Vec<String>,
+        nowarn: Vec<String>,
+    }
+
+    fn discover_java_fixtures() -> Vec<JavaFixture> {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("regress").join("java");
+        let mut results = Vec::new();
+        collect_java_fixtures(&dir, "", &mut results);
+        results.sort_by(|a, b| a.name.cmp(&b.name));
+        results
+    }
+
+    fn collect_java_fixtures(dir: &PathBuf, prefix: &str, results: &mut Vec<JavaFixture>) {
+        let entries = match fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let sub = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                let next = if prefix.is_empty() { sub.to_string() } else { format!("{prefix}/{sub}") };
+                collect_java_fixtures(&path, &next, results);
+                continue;
+            }
+            if path.extension().and_then(|s| s.to_str()) != Some("java") {
+                continue;
+            }
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown");
+            let name = if prefix.is_empty() { stem.to_string() } else { format!("{prefix}/{stem}") };
+            let raw =
+                fs::read_to_string(&path).unwrap_or_else(|e| panic!("无法读取 Java fixture '{}': {e}", path.display()));
+
+            let (meta, source) = super::parse_java_metadata(&raw);
+
+            let description =
+                meta.get("description").cloned().unwrap_or_else(|| panic!("[{name}] 缺少 '// description:' 元数据"));
+            let statements: usize = meta
+                .get("statements")
+                .and_then(|s| s.trim().parse().ok())
+                .unwrap_or_else(|| panic!("[{name}] 缺少或无效的 '// statements: N'"));
+            let warn = super::split_ids(meta.get("warn").cloned().unwrap_or_default().as_str());
+            let nowarn = super::split_ids(meta.get("nowarn").cloned().unwrap_or_default().as_str());
+
+            results.push(JavaFixture { name, description, source, statements, warn, nowarn });
+        }
+    }
+
+    #[test]
+    fn all_regress_java_lint_fixtures() {
+        let fixtures = discover_java_fixtures();
+        assert!(!fixtures.is_empty(), "未发现 Java regress fixture 文件 (tests/regress/java/*.java)");
+
+        for f in &fixtures {
+            let label = format!("{} ({})", f.name, f.description);
+
+            let result =
+                java::extract_sql_from_java(&f.source, &format!("{}.java", f.name), &JavaExtractConfig::default());
+            assert!(result.errors.is_empty(), "[{label}] Java 提取出错: {:?}", result.errors);
+
+            assert_eq!(
+                result.extractions.len(),
+                f.statements,
+                "[{label}] 期望 {} 个提取，实际 {} 个",
+                f.statements,
+                result.extractions.len()
+            );
+
+            // Collect all rule_ids from linting each extracted SQL
+            let mut rule_ids: Vec<String> = Vec::new();
+            for ext in &result.extractions {
+                let infos = if let Some(ref pr) = ext.parse_result {
+                    pr.statements.clone()
+                } else {
+                    let (infos, errors) = Parser::parse_sql(&ext.sql);
+                    let fatal_errors: Vec<_> = errors
+                        .iter()
+                        .filter(|e| {
+                            !matches!(e, ParserError::Warning { .. } | ParserError::ReservedKeywordAsIdentifier { .. })
+                        })
+                        .collect();
+                    assert!(fatal_errors.is_empty(), "[{label}] SQL 解析失败: {fatal_errors:?}\n  SQL: {}", ext.sql);
+                    infos
+                };
+                assert!(!infos.is_empty(), "[{label}] SQL 解析未生成任何 statement\n  SQL: {}", ext.sql);
+
+                let linter = SqlLinter::with_default_rules(LintConfig::default());
+                let warnings = linter.lint(&infos, None, Confidence::Full);
+                for w in &warnings {
+                    if !rule_ids.contains(&w.rule_id) {
+                        rule_ids.push(w.rule_id.clone());
+                    }
+                }
+            }
+
+            for id in &f.warn {
+                assert!(
+                    rule_ids.contains(id),
+                    "[{label}] 期望规则 {id} 触发，实际未触发\n  实际触发的规则: {:?}",
+                    rule_ids
+                );
+            }
+
+            for id in &f.nowarn {
+                assert!(
+                    !rule_ids.contains(id),
+                    "[{label}] 期望规则 {id} 不触发，实际触发了\n  实际触发的规则: {:?}",
+                    rule_ids
+                );
+            }
+
+            eprintln!("  ✓ {label}");
+        }
+
+        eprintln!("  [regress-java] {} fixture(s) passed", fixtures.len());
     }
 }
