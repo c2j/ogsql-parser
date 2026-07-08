@@ -1,0 +1,8 @@
+<!-- description: DISTINCT without ORDER BY, no R011 -->
+<!-- nowarn: R011 -->
+<!-- statements: 1 -->
+<mapper namespace="r011">
+    <select id="test">
+        SELECT DISTINCT col1 FROM t1
+    </select>
+</mapper>

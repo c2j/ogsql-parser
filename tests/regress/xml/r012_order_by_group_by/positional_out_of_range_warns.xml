@@ -1,0 +1,8 @@
+<!-- description: ORDER BY positional reference out of range with GROUP BY -->
+<!-- warn: R012 -->
+<!-- statements: 1 -->
+<mapper namespace="r012">
+    <select id="test">
+        SELECT col1, COUNT(*) FROM t1 GROUP BY col1 ORDER BY 3
+    </select>
+</mapper>

@@ -1,0 +1,10 @@
+-- description: function with SET TRANSACTION should trigger R010
+-- warn: R010
+CREATE OR REPLACE FUNCTION fn_set_tx() RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+    INSERT INTO t VALUES (1);
+END;
+$$;

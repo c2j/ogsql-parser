@@ -1,0 +1,8 @@
+<!-- description: ORDER BY positional reference with DISTINCT -->
+<!-- nowarn: R011 -->
+<!-- statements: 1 -->
+<mapper namespace="r011">
+    <select id="test">
+        SELECT DISTINCT col1, col2 FROM t1 ORDER BY 1
+    </select>
+</mapper>

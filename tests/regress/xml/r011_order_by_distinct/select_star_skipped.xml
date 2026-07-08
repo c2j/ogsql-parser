@@ -1,0 +1,8 @@
+<!-- description: SELECT * with DISTINCT is skipped -->
+<!-- nowarn: R011 -->
+<!-- statements: 1 -->
+<mapper namespace="r011">
+    <select id="test">
+        SELECT DISTINCT * FROM t1 ORDER BY col1
+    </select>
+</mapper>

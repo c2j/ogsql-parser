@@ -1,0 +1,8 @@
+<!-- description: ORDER BY column not in SELECT with GROUP BY -->
+<!-- warn: R012 -->
+<!-- statements: 1 -->
+<mapper namespace="r012">
+    <select id="test">
+        SELECT col1, COUNT(*) FROM t1 GROUP BY col1 ORDER BY col2
+    </select>
+</mapper>

@@ -1,0 +1,8 @@
+<!-- description: ORDER BY references a column in GROUP BY but not in SELECT -->
+<!-- nowarn: R012 -->
+<!-- statements: 1 -->
+<mapper namespace="r012">
+    <select id="test">
+        SELECT a FROM t1 GROUP BY a, b ORDER BY b
+    </select>
+</mapper>
