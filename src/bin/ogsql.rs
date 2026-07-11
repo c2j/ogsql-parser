@@ -5001,6 +5001,7 @@ fn ibatis_error_kind(err: &ogsql_parser::ibatis::error::IbatisError) -> &'static
         IbatisError::MissingAttribute { .. } => "MissingAttribute",
         IbatisError::EmptyMapper => "EmptyMapper",
         IbatisError::SqlParseError(_) => "SqlParseError",
+        IbatisError::JdbcCallRequiresCallable { .. } => "JdbcCallRequiresCallable",
     }
 }
 
