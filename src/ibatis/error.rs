@@ -28,4 +28,8 @@ pub enum IbatisError {
     /// SQL 解析错误（由核心 Parser 产生）
     #[error("SQL parse error: {0}")]
     SqlParseError(ParserError),
+
+    /// JDBC {call ...} / {? = call ...} 语法需要 statementType="CALLABLE"
+    #[error("<{element} id=\"{id}\"> uses JDBC call escape syntax but is missing statementType=\"CALLABLE\". Add statementType=\"CALLABLE\" to enable JDBC call translation.")]
+    JdbcCallRequiresCallable { element: String, id: String },
 }

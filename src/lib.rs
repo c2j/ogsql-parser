@@ -120,6 +120,10 @@ pub fn is_warning(e: &ParserError) -> bool {
 
 /// Translate JDBC `{call ...}` / `{? = call ...}` escape syntax to native `CALL` SQL.
 ///
+/// Also handles MyBatis/iBatis flattened parameter placeholders in place of `?`:
+/// - `{__XML_PARAM_VARCHAR_result__ = call func(args)}` → `CALL func(args)`
+/// - `{__XML_RAW_procName__ = call func(args)}` → `CALL func(args)`
+///
 /// The core SQL parser only understands bare `CALL pkg.proc(args)`. JDBC escape
 /// wrappers (`{call ...}`, `{? = call ...}`) must be stripped before parsing.
 ///
@@ -139,6 +143,16 @@ fn try_match_call(s: &str) -> bool {
     s.len() >= 4 && s[..4].eq_ignore_ascii_case("call") && (s.len() == 4 || is_jdbc_call_boundary(s.as_bytes()[4]))
 }
 
+/// Check if `s` starts with a flattened parameter placeholder (`__XML_PARAM_...__` or
+/// `__XML_RAW_...__`), returning the text after the trailing `__` suffix if found.
+fn try_skip_param_placeholder(s: &str) -> Option<&str> {
+    let after_prefix =
+        if let Some(rest) = s.strip_prefix("__XML_PARAM_") { rest } else { s.strip_prefix("__XML_RAW_")? };
+    // Find the closing `__` suffix
+    let end = after_prefix.find("__")?;
+    Some(&after_prefix[end + 2..])
+}
+
 pub fn translate_jdbc_call(sql: &str) -> String {
     let trimmed = sql.trim_start();
 
@@ -147,8 +161,9 @@ pub fn translate_jdbc_call(sql: &str) -> String {
     }
     let after_brace = &trimmed[1..];
 
-    // {? = call proc(args)}  → CALL proc(args)
-    if let Some(rest) = after_brace.trim_start().strip_prefix('?') {
+    // {? = call func(args)}  → CALL func(args)
+    let trimmed_after_brace = after_brace.trim_start();
+    if let Some(rest) = trimmed_after_brace.strip_prefix('?') {
         let rest = rest.trim_start();
         let after_call = if let Some(after_eq) = rest.strip_prefix('=') {
             after_eq.trim_start()
@@ -162,10 +177,23 @@ pub fn translate_jdbc_call(sql: &str) -> String {
         return sql.to_string();
     }
 
+    // {__XML_PARAM_*__ = call func(args)}  → CALL func(args)
+    // {__XML_RAW_*__ = call func(args)}    → CALL func(args)
+    if let Some(after_placeholder) = try_skip_param_placeholder(trimmed_after_brace) {
+        let after_eq = after_placeholder.trim_start();
+        if let Some(after_call) = after_eq.strip_prefix('=') {
+            let after_call = after_call.trim_start();
+            if try_match_call(after_call) {
+                let body = &after_call[4..].trim_start();
+                return strip_trailing_brace(body);
+            }
+        }
+        return sql.to_string();
+    }
+
     // {call proc(args)}  → CALL proc(args)
-    let after_brace = after_brace.trim_start();
-    if try_match_call(after_brace) {
-        let body = &after_brace[4..].trim_start();
+    if try_match_call(trimmed_after_brace) {
+        let body = &trimmed_after_brace[4..].trim_start();
         return strip_trailing_brace(body);
     }
 
@@ -180,6 +208,120 @@ fn strip_trailing_brace(body: &str) -> String {
         format!("CALL {}", inner)
     } else {
         format!("CALL {}()", inner)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_translate_jdbc_call_plain_sql_idempotent() {
+        // Plain SQL without JDBC escape → unchanged
+        assert_eq!(translate_jdbc_call("SELECT 1"), "SELECT 1");
+        assert_eq!(translate_jdbc_call("CALL proc()"), "CALL proc()");
+        assert_eq!(translate_jdbc_call(""), "");
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_basic() {
+        // {call proc(args)} → CALL proc(args)
+        assert_eq!(translate_jdbc_call("{call proc()}"), "CALL proc()");
+        assert_eq!(translate_jdbc_call("{call proc(1, 2)}"), "CALL proc(1, 2)");
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_no_args_adds_parens() {
+        // {call pkg.proc} → CALL pkg.proc()  (adds empty parens)
+        assert_eq!(translate_jdbc_call("{call pkg.proc}"), "CALL pkg.proc()");
+        assert_eq!(translate_jdbc_call("{call my_proc}"), "CALL my_proc()");
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_literal_question_mark() {
+        // {? = call func(args)} → CALL func(args)
+        assert_eq!(translate_jdbc_call("{? = call func()}"), "CALL func()");
+        assert_eq!(translate_jdbc_call("{? = call func(1, 2)}"), "CALL func(1, 2)");
+        assert_eq!(translate_jdbc_call("{? = call pkg.func(1)}"), "CALL pkg.func(1)");
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_literal_question_mark_no_args() {
+        // {? = call func} → CALL func()  (adds empty parens)
+        assert_eq!(translate_jdbc_call("{? = call func}"), "CALL func()");
+        assert_eq!(translate_jdbc_call("{? = call pkg.func}"), "CALL pkg.func()");
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_whitespace_tolerant() {
+        // Whitespace/line-breaks between tokens
+        assert_eq!(translate_jdbc_call("{\ncall proc()}"), "CALL proc()");
+        assert_eq!(translate_jdbc_call("{\n? = call proc()}"), "CALL proc()");
+        assert_eq!(translate_jdbc_call("{?\n= call proc()}"), "CALL proc()");
+        assert_eq!(translate_jdbc_call("{call\nproc()}"), "CALL proc()");
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_param_placeholder() {
+        // {__XML_PARAM_VARCHAR_result__ = call func(args)} → CALL func(args)
+        assert_eq!(translate_jdbc_call("{__XML_PARAM_VARCHAR_result__ = call func()}"), "CALL func()");
+        assert_eq!(
+            translate_jdbc_call("{__XML_PARAM_VARCHAR_result__ = call func(__XML_PARAM_VARCHAR_scdm__)}"),
+            "CALL func(__XML_PARAM_VARCHAR_scdm__)"
+        );
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_param_placeholder_no_type() {
+        // Placeholder without jdbcType prefix
+        assert_eq!(translate_jdbc_call("{__XML_PARAM_result__ = call func()}"), "CALL func()");
+        assert_eq!(
+            translate_jdbc_call("{__XML_PARAM_result__ = call func(__XML_PARAM_scdm__, __XML_PARAM_day__)}"),
+            "CALL func(__XML_PARAM_scdm__, __XML_PARAM_day__)"
+        );
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_raw_placeholder() {
+        // {__XML_RAW_procName__ = call func(args)} → CALL func(args)
+        assert_eq!(translate_jdbc_call("{__XML_RAW_procName__ = call func()}"), "CALL func()");
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_full_user_example() {
+        // Exact user pattern with #{result,mode=OUT,jdbcType=VARCHAR}
+        let input = concat!(
+            "{__XML_PARAM_VARCHAR_result__ = call fnc_com_getday(\n",
+            "        __XML_PARAM_VARCHAR_scdm__,\n",
+            "        __XML_PARAM_VARCHAR_day__,\n",
+            "        __XML_PARAM_INTEGER_feed__,\n",
+            "        __XML_PARAM_VARCHAR_coinCode__\n",
+            "        )}"
+        );
+        let expected = concat!(
+            "CALL fnc_com_getday(\n",
+            "        __XML_PARAM_VARCHAR_scdm__,\n",
+            "        __XML_PARAM_VARCHAR_day__,\n",
+            "        __XML_PARAM_INTEGER_feed__,\n",
+            "        __XML_PARAM_VARCHAR_coinCode__\n",
+            "        )"
+        );
+        assert_eq!(translate_jdbc_call(input), expected);
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_idempotent_non_jdbc() {
+        // Non-JDBC input with { ... } but not matching patterns → unchanged
+        assert_eq!(translate_jdbc_call("{ SELECT 1 }"), "{ SELECT 1 }");
+        assert_eq!(translate_jdbc_call("{ ? = 1 }"), "{ ? = 1 }");
+    }
+
+    #[test]
+    fn test_translate_jdbc_call_no_match_fallback() {
+        // { ? = something_else } → unchanged (no "call")
+        assert_eq!(translate_jdbc_call("{ ? = some_expr }"), "{ ? = some_expr }");
+        // {__XML_PARAM_x__ = something } → unchanged
+        assert_eq!(translate_jdbc_call("{__XML_PARAM_x__ = something}"), "{__XML_PARAM_x__ = something}");
     }
 }
 

@@ -1,0 +1,11 @@
+<!-- description: CALL with missing right parenthesis and missing statementType — flat_sql unchanged -->
+<!-- statements: 1 -->
+<!-- namespace: com.example.ProcMapper -->
+<!-- flat-contains: {call proc( -->
+<!-- params: p_id -->
+<!-- has-dynamic: false -->
+<mapper namespace="com.example.ProcMapper">
+    <select id="callProcBad" statementType="CALLABLE">
+        {call proc(#{p_id,mode=IN,jdbcType=INTEGER}
+    </select>
+</mapper>

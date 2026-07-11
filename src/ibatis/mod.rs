@@ -253,44 +253,93 @@ fn parse_mapper_bytes_internal(
         }
 
         let has_dynamic = has_dynamic_elements(&stmt.body);
-        let parse_sql = if stmt.statement_type.as_deref() == Some("CALLABLE") {
-            crate::translate_jdbc_call(&flat_sql)
+
+        // Check if the flat_sql uses JDBC {call ...} / {? = call ...} escape syntax
+        // but statementType is not CALLABLE — produce a clear error instead of
+        // letting the SQL parser choke on the raw { ... } wrapper.
+        fn is_jdbc_escape_syntax(sql: &str) -> bool {
+            let trimmed = sql.trim_start();
+            if !trimmed.starts_with('{') {
+                return false;
+            }
+            let inner = trimmed[1..].trim_start();
+            // {? = call ...} or {__XML_PARAM_*__ = call ...} or {__XML_RAW_*__ = call ...}
+            inner.starts_with('?')
+                || inner.starts_with("__XML_PARAM_")
+                || inner.starts_with("__XML_RAW_")
+                || inner.starts_with("call")
+                || inner.starts_with("CALL")
+        }
+
+        if stmt.statement_type.as_deref() == Some("CALLABLE") {
+            // statementType=CALLABLE: strip JDBC wrapper and parse
+            let parse_sql = crate::translate_jdbc_call(&flat_sql);
+            // Trim before parsing to avoid leading whitespace from XML indentation
+            // skewing error line numbers.
+            let parse_sql_trimmed = parse_sql.trim().to_string();
+            let parse_result = if !parse_sql_trimmed.is_empty() {
+                Some(crate::parser::Parser::parse_sql(&parse_sql_trimmed))
+            } else {
+                None
+            };
+            // Compute the XML line where body content begins (after leading whitespace).
+            let leading_newlines = flat_sql.chars().take_while(|c| c.is_whitespace()).filter(|c| *c == '\n').count();
+            let body_start_line = stmt.line + leading_newlines;
+            // Remap SQL parse error line numbers to XML file line numbers.
+            let parse_result = parse_result.map(|(infos, errors)| {
+                let errors = errors.into_iter().map(|e| remap_error_line(e, body_start_line as isize - 1)).collect();
+                (infos, errors)
+            });
+            statements.push(ParsedStatement {
+                id: stmt.id.clone(),
+                kind: stmt.kind,
+                parameter_type: stmt.parameter_type.clone(),
+                result_type: stmt.result_type.clone(),
+                flat_sql,
+                parameters,
+                has_dynamic_elements: has_dynamic,
+                line: stmt.line,
+                body_start_line,
+                parse_result,
+                database_id: stmt.database_id.clone(),
+                statement_type: stmt.statement_type.clone(),
+            });
+        } else if is_jdbc_escape_syntax(&flat_sql) {
+            // JDBC call syntax found but statementType is NOT CALLABLE → error
+            errors.push(IbatisError::JdbcCallRequiresCallable {
+                element: format!("{:?}", stmt.kind).to_lowercase(),
+                id: stmt.id.clone(),
+            });
         } else {
-            flat_sql.clone()
-        };
-        // Trim before parsing to avoid leading whitespace from XML indentation
-        // skewing error line numbers.
-        let parse_sql_trimmed = parse_sql.trim().to_string();
-        let parse_result = if !parse_sql_trimmed.is_empty() {
-            Some(crate::parser::Parser::parse_sql(&parse_sql_trimmed))
-        } else {
-            None
-        };
-
-        // Compute the XML line where body content begins (after leading whitespace).
-        let leading_newlines = flat_sql.chars().take_while(|c| c.is_whitespace()).filter(|c| *c == '\n').count();
-        let body_start_line = stmt.line + leading_newlines;
-
-        // Remap SQL parse error line numbers to XML file line numbers.
-        let parse_result = parse_result.map(|(infos, errors)| {
-            let errors = errors.into_iter().map(|e| remap_error_line(e, body_start_line as isize - 1)).collect();
-            (infos, errors)
-        });
-
-        statements.push(ParsedStatement {
-            id: stmt.id.clone(),
-            kind: stmt.kind,
-            parameter_type: stmt.parameter_type.clone(),
-            result_type: stmt.result_type.clone(),
-            flat_sql,
-            parameters,
-            has_dynamic_elements: has_dynamic,
-            line: stmt.line,
-            body_start_line,
-            parse_result,
-            database_id: stmt.database_id.clone(),
-            statement_type: stmt.statement_type.clone(),
-        });
+            // Normal SQL (no JDBC escape wrapper)
+            let parse_sql = flat_sql.clone();
+            let parse_sql_trimmed = parse_sql.trim().to_string();
+            let parse_result = if !parse_sql_trimmed.is_empty() {
+                Some(crate::parser::Parser::parse_sql(&parse_sql_trimmed))
+            } else {
+                None
+            };
+            let leading_newlines = flat_sql.chars().take_while(|c| c.is_whitespace()).filter(|c| *c == '\n').count();
+            let body_start_line = stmt.line + leading_newlines;
+            let parse_result = parse_result.map(|(infos, errors)| {
+                let errors = errors.into_iter().map(|e| remap_error_line(e, body_start_line as isize - 1)).collect();
+                (infos, errors)
+            });
+            statements.push(ParsedStatement {
+                id: stmt.id.clone(),
+                kind: stmt.kind,
+                parameter_type: stmt.parameter_type.clone(),
+                result_type: stmt.result_type.clone(),
+                flat_sql,
+                parameters,
+                has_dynamic_elements: has_dynamic,
+                line: stmt.line,
+                body_start_line,
+                parse_result,
+                database_id: stmt.database_id.clone(),
+                statement_type: stmt.statement_type.clone(),
+            });
+        }
     }
 
     if statements.is_empty() && errors.is_empty() {

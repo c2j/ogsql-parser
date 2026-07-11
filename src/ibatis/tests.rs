@@ -2436,3 +2436,70 @@ fn find_nodes_of_type<'a>(node: &'a SqlNode, type_name: &str) -> Vec<&'a SqlNode
     }
     results
 }
+
+// ── Guard: Missing statementType=CALLABLE — verify error message ──
+
+#[test]
+fn guard_jdbc_call_without_callable_produces_clear_error() {
+    // JDBC {? = call ...} syntax WITHOUT statementType="CALLABLE"
+    // → is_jdbc_escape_syntax detects the pattern
+    // → JdbcCallRequiresCallable error should be produced
+    let xml = br#"<mapper namespace="com.example.ProcMapper">
+        <select id="callGetDay" resultType="map" parameterType="map">
+            {? = call fnc_com_getday(
+            #{scdm,mode=IN,jdbcType=VARCHAR},
+            #{day,mode=IN,jdbcType=VARCHAR},
+            #{feed,mode=IN,jdbcType=INTEGER},
+            #{coinCode,mode=IN,jdbcType=VARCHAR}
+            )}
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(!result.errors.is_empty(), "should have error about missing CALLABLE");
+    assert_eq!(result.statements.len(), 0, "should have 0 statements (error prevents parsing)");
+
+    let found = result.errors.iter().any(|e| matches!(e, IbatisError::JdbcCallRequiresCallable { .. }));
+    assert!(found, "should produce JdbcCallRequiresCallable error, got: {:?}", result.errors);
+
+    let error_msg = format!("{}", result.errors[0]);
+    assert!(
+        error_msg.contains("statementType=\"CALLABLE\""),
+        "error message should mention statementType=CALLABLE, got: {}",
+        error_msg
+    );
+    assert!(error_msg.contains("callGetDay"), "error message should mention the statement id, got: {}", error_msg);
+}
+
+#[test]
+fn guard_jdbc_call_with_callable_should_have_no_sql_errors() {
+    // Same XML but WITH statementType="CALLABLE"
+    // → translate_jdbc_call IS invoked
+    // → {? = call ...} wrapper stripped → CALL func(...)
+    // → SQL parser should succeed
+    let xml = br#"<mapper namespace="com.example.ProcMapper">
+        <select id="callGetDay" statementType="CALLABLE" resultType="map" parameterType="map">
+            {? = call fnc_com_getday(
+            #{scdm,mode=IN,jdbcType=VARCHAR},
+            #{day,mode=IN,jdbcType=VARCHAR},
+            #{feed,mode=IN,jdbcType=INTEGER},
+            #{coinCode,mode=IN,jdbcType=VARCHAR}
+            )}
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty(), "should have no XML-level errors: {:?}", result.errors);
+    assert_eq!(result.statements.len(), 1, "should have 1 statement");
+
+    let stmt = &result.statements[0];
+    assert_eq!(stmt.statement_type, Some("CALLABLE".to_string()));
+
+    // With CALLABLE, the flat_sql still has the original wrapper
+    assert!(stmt.flat_sql.contains("{? = call"), "flat_sql retains JDBC wrapper: {}", stmt.flat_sql);
+
+    // But parse_result should have NO errors (translate_jdbc_call stripped the wrapper)
+    if let Some((_infos, errors)) = &stmt.parse_result {
+        assert!(errors.is_empty(), "expected NO SQL parse errors with statementType=CALLABLE, got: {:?}", errors);
+    } else {
+        panic!("expected parse_result to be Some");
+    }
+}

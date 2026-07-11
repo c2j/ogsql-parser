@@ -1,0 +1,16 @@
+<!-- description: JDBC {#param = call} with OUT return param and IN params -->
+<!-- statements: 1 -->
+<!-- namespace: com.example.ProcMapper -->
+<!-- flat-contains: __XML_PARAM_VARCHAR_result__ = call fnc_com_getday -->
+<!-- params: result, scdm, day, feed, coinCode -->
+<!-- has-dynamic: false -->
+<mapper namespace="com.example.ProcMapper">
+    <select id="callGetDay" statementType="CALLABLE" resultType="map" parameterType="map">
+        {#{result,mode=OUT,jdbcType=VARCHAR} = call fnc_com_getday(
+        #{scdm,mode=IN,jdbcType=VARCHAR},
+        #{day,mode=IN,jdbcType=VARCHAR},
+        #{feed,mode=IN,jdbcType=INTEGER},
+        #{coinCode,mode=IN,jdbcType=VARCHAR}
+        )}
+    </select>
+</mapper>
