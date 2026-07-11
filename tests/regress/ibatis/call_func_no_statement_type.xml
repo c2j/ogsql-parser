@@ -1,5 +1,6 @@
 <!-- description: JDBC {? = call} WITHOUT statementType=CALLABLE — wrapper NOT stripped -->
-<!-- statements: 1 -->
+<!-- statements: 0 -->
+<!-- expect-errors: true -->
 <!-- namespace: com.example.ProcMapper -->
 <!-- flat-contains: {? = call fnc_com_getday -->
 <!-- params: scdm, day, feed, coinCode -->

@@ -310,6 +310,13 @@ mod ibatis_regress {
             let label = format!("{} ({})", f.name, f.description);
 
             let result = ibatis::parse_mapper_bytes(f.xml.as_bytes());
+
+            if f.expect_errors {
+                assert!(!result.errors.is_empty(), "[{label}] 应该产生错误，但没有");
+                eprintln!("  ✓ {label} (expected {} error(s))", result.errors.len());
+                continue;
+            }
+
             assert!(result.errors.is_empty(), "[{label}] XML 解析出错: {:?}", result.errors);
 
             if let Some(expect_ns) = &f.namespace {
@@ -370,6 +377,7 @@ mod xml_fixture {
         pub flat_contains: Vec<String>,
         pub params: Vec<String>,
         pub has_dynamic: bool,
+        pub expect_errors: bool,
     }
 
     pub fn discover_xml_fixtures() -> Vec<XmlFixture> {
@@ -422,6 +430,7 @@ mod xml_fixture {
                 .map(|s| s.split(',').map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect())
                 .unwrap_or_default();
             let has_dynamic = meta.get("has-dynamic").map(|s| s.trim() == "true").unwrap_or(false);
+            let expect_errors = meta.get("expect-errors").map(|s| s.trim() == "true").unwrap_or(false);
 
             results.push(XmlFixture {
                 name,
@@ -432,6 +441,7 @@ mod xml_fixture {
                 flat_contains,
                 params,
                 has_dynamic,
+                expect_errors,
             });
         }
     }
