@@ -278,23 +278,43 @@ impl Parser {
                         }
                     };
                     // Always reset to statement boundary to prevent cascading into next statement
-                    if matches!(stmt, crate::ast::Statement::Empty) && end_pos - start_pos > 500 {
-                        // When parsing fails and the estimated boundary is far away,
-                        // the statement splitter was confused (e.g. unmatched paren).
-                        // Fall back to the first semicolon after start_pos to avoid
-                        // swallowing hundreds of subsequent statements.
-                        if let Some(fallback) = self.find_next_semicolon_from(start_pos) {
-                            self.pos = fallback + 1;
+                    //
+                    // * On failure (Empty): reset to estimated boundary.
+                    // * On success: if the parser consumed past the estimated boundary,
+                    //   keep the new position (e.g. anonymous block `BEGIN ... END;`
+                    //   where the statement splitter doesn't know about PL block nesting).
+                    //   Otherwise reset to the estimated boundary.
+                    if matches!(stmt, crate::ast::Statement::Empty) {
+                        if end_pos - start_pos > 500 {
+                            // When parsing fails and the estimated boundary is far away,
+                            // the statement splitter was confused (e.g. unmatched paren).
+                            // Fall back to the first semicolon after start_pos to avoid
+                            // swallowing hundreds of subsequent statements.
+                            if let Some(fallback) = self.find_next_semicolon_from(start_pos) {
+                                self.pos = fallback + 1;
+                            } else {
+                                self.pos = end_pos + 1;
+                            }
                         } else {
                             self.pos = end_pos + 1;
                         }
-                    } else {
+                    } else if self.pos <= end_pos {
+                        // Success but didn't consume past boundary — reset normally.
                         self.pos = end_pos + 1;
                     }
+                    // else: success and consumed past boundary — keep self.pos.
 
                     let start_span = self.tokens[start_pos].span;
-                    let end_token = if end_pos < self.tokens.len() {
-                        &self.tokens[end_pos]
+                    // When the parser consumed past the estimated boundary
+                    // (e.g. anonymous block spanning beyond the first semicolon),
+                    // use the actual last consumed token for the end span.
+                    let actual_end_pos = if self.pos > end_pos && self.pos > 0 {
+                        self.pos - 1
+                    } else {
+                        end_pos
+                    };
+                    let end_token = if actual_end_pos < self.tokens.len() {
+                        &self.tokens[actual_end_pos]
                     } else {
                         self.tokens.last().expect("tokens is non-empty when end_pos >= len")
                     };
