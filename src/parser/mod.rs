@@ -308,11 +308,7 @@ impl Parser {
                     // When the parser consumed past the estimated boundary
                     // (e.g. anonymous block spanning beyond the first semicolon),
                     // use the actual last consumed token for the end span.
-                    let actual_end_pos = if self.pos > end_pos && self.pos > 0 {
-                        self.pos - 1
-                    } else {
-                        end_pos
-                    };
+                    let actual_end_pos = if self.pos > end_pos && self.pos > 0 { self.pos - 1 } else { end_pos };
                     let end_token = if actual_end_pos < self.tokens.len() {
                         &self.tokens[actual_end_pos]
                     } else {
