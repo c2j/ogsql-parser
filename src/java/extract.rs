@@ -1247,10 +1247,8 @@ impl<'a> ExtractContext<'a> {
         if inner.kind() != "method_invocation" {
             return None;
         }
-        let name = match inner.child_by_field_name("name") {
-            Some(n) => self.node_text(n),
-            None => return None,
-        };
+        let n = inner.child_by_field_name("name")?;
+        let name = self.node_text(n);
         if name != "contains" {
             return None;
         }
@@ -1280,10 +1278,8 @@ impl<'a> ExtractContext<'a> {
         if expr.kind() != "method_invocation" {
             return None;
         }
-        let name = match expr.child_by_field_name("name") {
-            Some(n) => self.node_text(n),
-            None => return None,
-        };
+        let n = expr.child_by_field_name("name")?;
+        let name = self.node_text(n);
         if name != "add" {
             return None;
         }
@@ -1346,10 +1342,8 @@ impl<'a> ExtractContext<'a> {
 
     /// Evaluate a method invocation to a string result.
     pub(super) fn try_evaluate_method_result(&self, node: Node) -> Option<String> {
-        let name = match node.child_by_field_name("name") {
-            Some(n) => self.node_text(n),
-            None => return None,
-        };
+        let n = node.child_by_field_name("name")?;
+        let name = self.node_text(n);
         match name.as_str() {
             "join" => self.evaluate_string_join(node),
             "nCopies" => self.evaluate_ncopies_string(node),
@@ -1391,10 +1385,8 @@ impl<'a> ExtractContext<'a> {
                 None
             }
             "method_invocation" => {
-                let method_name = match source.child_by_field_name("name") {
-                    Some(n) => self.node_text(n),
-                    None => return None,
-                };
+                let n = source.child_by_field_name("name")?;
+                let method_name = self.node_text(n);
                 if method_name == "nCopies" {
                     let inner_args = source.child_by_field_name("arguments")?;
                     let count = self.resolve_int_arg_node(&inner_args, 0)?;
@@ -1414,10 +1406,8 @@ impl<'a> ExtractContext<'a> {
         match node.kind() {
             "decimal_integer_literal" => self.node_text(node).parse::<usize>().ok(),
             "method_invocation" => {
-                let name = match node.child_by_field_name("name") {
-                    Some(n) => self.node_text(n),
-                    None => return None,
-                };
+                let n = node.child_by_field_name("name")?;
+                let name = self.node_text(n);
                 if name != "size" {
                     return None;
                 }
