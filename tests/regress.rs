@@ -14,6 +14,7 @@
 //! - `-- nowarn: R001`      (repeatable) linter rule must NOT fire
 //! - `-- parse-warn: <text>`(repeatable) parser warning MUST contain <text>
 //! - `-- parse-nowarn: <text>`(repeatable) parser warning must NOT contain <text>
+//! - `-- format-contains: <text>` (repeatable) formatted SQL MUST contain <text> (case-insensitive)
 //! - `-- split: semicolon`  (optional) split by `;`, parse each block separately
 //!
 //! Fixtures with `-- parse-warn` or `-- parse-nowarn` relax the
@@ -25,7 +26,7 @@ use std::path::PathBuf;
 
 use ogsql_parser::analyzer::schema::SchemaMap;
 use ogsql_parser::linter::{Confidence, LintConfig, SqlLinter};
-use ogsql_parser::{Parser, ParserError};
+use ogsql_parser::{Parser, ParserError, SqlFormatter};
 
 // ── metadata parsing ──────────────────────────────────────
 
@@ -37,6 +38,7 @@ struct Fixture {
     nowarn: Vec<String>,
     parse_warn: Vec<String>,
     parse_nowarn: Vec<String>,
+    format_contains: Vec<String>,
     split: Option<String>,
     schema_entries: Vec<SchemaEntry>,
 }
@@ -88,6 +90,7 @@ fn collect_fixtures(dir: &PathBuf, prefix: &str, results: &mut Vec<Fixture>) {
         let nowarn_lines = meta.get("nowarn").cloned().unwrap_or_default();
         let parse_warn_lines = meta.get("parse-warn").cloned().unwrap_or_default();
         let parse_nowarn_lines = meta.get("parse-nowarn").cloned().unwrap_or_default();
+        let format_contains_lines = meta.get("format-contains").cloned().unwrap_or_default();
         let split = meta.get("split").cloned();
         let schema_entries = parse_schema_entries(meta.get("schema"));
 
@@ -99,6 +102,7 @@ fn collect_fixtures(dir: &PathBuf, prefix: &str, results: &mut Vec<Fixture>) {
             nowarn: split_ids(&nowarn_lines),
             parse_warn: split_texts(&parse_warn_lines),
             parse_nowarn: split_texts(&parse_nowarn_lines),
+            format_contains: split_texts(&format_contains_lines),
             split,
             schema_entries,
         });
@@ -266,6 +270,28 @@ fn all_regress_fixtures() {
                 "[{label}] 期望 parser warning 不包含 '{text}'，实际匹配了\n  实际 parser warning: {:?}",
                 lint_result.parse_warnings
             );
+        }
+
+        if !f.format_contains.is_empty() {
+            let (infos, errors) = Parser::parse_sql(&f.sql);
+            let fatal: Vec<_> = errors
+                .iter()
+                .filter(|e| !matches!(e, ParserError::Warning { .. } | ParserError::ReservedKeywordAsIdentifier { .. }))
+                .collect();
+            assert!(fatal.is_empty(), "[{label}] format 校验前解析失败: {fatal:?}");
+            assert!(!infos.is_empty(), "[{label}] format 校验前未生成 statement");
+
+            let formatter = SqlFormatter::new();
+            let formatted: String =
+                infos.iter().map(|info| formatter.format_statement(&info.statement)).collect::<Vec<_>>().join("\n");
+            let formatted_lower = formatted.to_lowercase();
+
+            for needle in &f.format_contains {
+                assert!(
+                    formatted_lower.contains(&needle.to_lowercase()),
+                    "[{label}] 期望 format 输出包含 '{needle}'，实际输出:\n{formatted}"
+                );
+            }
         }
 
         eprintln!("  ✓ {label}");

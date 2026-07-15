@@ -2064,6 +2064,9 @@ impl SqlFormatter {
 
     fn format_update(&self, stmt: &UpdateStatement) -> String {
         let mut parts = Vec::new();
+        if let Some(ref w) = stmt.with {
+            parts.push(self.format_with(w));
+        }
         parts.push(self.kw("UPDATE"));
         if let Some(hints) = self.format_hints(&stmt.hints) {
             parts.push(hints);
@@ -2154,6 +2157,9 @@ impl SqlFormatter {
 
     fn format_delete(&self, stmt: &DeleteStatement) -> String {
         let mut parts = Vec::new();
+        if let Some(ref w) = stmt.with {
+            parts.push(self.format_with(w));
+        }
         parts.push(self.kw("DELETE"));
         if let Some(hints) = self.format_hints(&stmt.hints) {
             parts.push(hints);
