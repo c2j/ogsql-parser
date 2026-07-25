@@ -32,7 +32,7 @@
 
 ### 1.2 语料
 
-用 ogsql-parser 自带的 **GaussDB-2.23.07.210 官方测试集**做基准，覆盖 21 个分类、共 ~33K 行 SQL。脚本会按 `;` 切分成独立语句，过滤空行和注释后得到 **9,612 个有效语句**（DQL 4180 / DDL 3421 / DML_INSERT 775 / PLSQL 612 / EXPLAIN 316 / …）。
+用 ogsql-parser 自带的 **docs/references/GaussDB-2.23.07.210 官方测试集**做基准，覆盖 21 个分类、共 ~33K 行 SQL。脚本会按 `;` 切分成独立语句，过滤空行和注释后得到 **9,612 个有效语句**（DQL 4180 / DDL 3421 / DML_INSERT 775 / PLSQL 612 / EXPLAIN 316 / …）。
 
 > 这套语料是 openGauss/GaussDB 的真实回归测试 SQL，对 ogsql-parser 而言是「主场」；对 sqlparser-rs（PG 方言）和 pglast（PG 方言）会暴露方言差异。
 
@@ -229,7 +229,7 @@ import re
 from pathlib import Path
 out = Path('corpus/all_statements.tsv')
 with out.open('w') as f:
-    for fpath in Path('ogsql-parser/GaussDB-2.23.07.210/sql/by_category').glob('*.sql'):
+    for fpath in Path('ogsql-parser/docs/references/GaussDB-2.23.07.210/sql/by_category').glob('*.sql'):
         text = fpath.read_text(encoding='utf-8', errors='ignore')
         text = '\n'.join(l for l in text.splitlines() if not l.strip().startswith('--'))
         for s in re.split(r';\s*\n', text):

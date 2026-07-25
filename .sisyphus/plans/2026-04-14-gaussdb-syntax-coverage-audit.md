@@ -556,9 +556,9 @@ ALTER TABLE 子操作缺失:       ~16 项
 
 ## 八、参考文件路径
 
-- 文档目录: `GaussDB-2.23.07.210/云数据库 GaussDB 2.23.07.210 产品文档 (for 华为云Stack 8.3.0) 04/`
-- SQL 分类: `GaussDB-2.23.07.210/sql/by_category/` (20 个文件)
-- SQL 按文档页: `GaussDB-2.23.07.210/sql/by_file/` (737 个文件)
+- 文档目录: `docs/references/GaussDB-2.23.07.210/云数据库 GaussDB 2.23.07.210 产品文档 (for 华为云Stack 8.3.0) 04/`
+- SQL 分类: `docs/references/GaussDB-2.23.07.210/sql/by_category/` (20 个文件)
+- SQL 按文档页: `docs/references/GaussDB-2.23.07.210/sql/by_file/` (737 个文件)
 - 解析器 AST: `src/ast/mod.rs`
 - 解析器分发: `src/parser/mod.rs`
 - 已有计划: `docs/plans/2026-04-13-gaussdb-p0-p1-implementation.md`

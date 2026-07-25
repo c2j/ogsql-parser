@@ -3,9 +3,8 @@ use crate::token::{Keyword, Token, TokenWithSpan};
 // ── Configuration Types ────────────────────────────────────────────────────────
 
 /// Keyword casing mode for SQL formatting
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum KeywordCase {
     /// Preserve original casing from source
     #[default]
@@ -17,9 +16,8 @@ pub enum KeywordCase {
 }
 
 /// Comma positioning style for column lists
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum CommaStyle {
     /// Comma at end of line: `col1, col2, col3`
     #[default]
@@ -29,8 +27,7 @@ pub enum CommaStyle {
 }
 
 /// Configuration for SQL formatting
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FormatConfig {
     /// Number of spaces per indentation level (default: 2)
     pub indent_width: usize,

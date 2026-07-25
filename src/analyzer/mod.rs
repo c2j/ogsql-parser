@@ -113,7 +113,7 @@ fn parameterize_trace(trace: &TraceChain) -> ParameterizedResult {
     ParameterizedResult { sql, bindings }
 }
 
-fn detect_wrapping_in_sql(sql: &mut String, bindings: &mut Vec<ParameterBinding>) {
+fn detect_wrapping_in_sql(sql: &mut String, bindings: &mut [ParameterBinding]) {
     for binding in bindings.iter_mut() {
         let placeholder = format!(" :{}", binding.variable);
         let has_quote_before = sql.contains(&format!("'{}", placeholder));

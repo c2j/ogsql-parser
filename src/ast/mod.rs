@@ -1,3 +1,8 @@
+// [PERMANENT] AST enums naturally have heterogeneous variant sizes
+// (e.g. SelectStatement vs NullLiteral). Boxing large variants would
+// break serde compatibility and add allocation overhead on the hot path.
+#![allow(clippy::large_enum_variant)]
+
 pub mod ident;
 pub mod plpgsql;
 
@@ -1800,15 +1805,6 @@ pub struct CallFuncStatement {
     pub args: Vec<CallArg>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub builtin: Option<BuiltinFuncMeta>,
-}
-
-macro_rules! stub_struct {
-    ($($name:ident),+ $(,)?) => {
-        $(
-            #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-            pub struct $name { pub _stub: () }
-        )+
-    };
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

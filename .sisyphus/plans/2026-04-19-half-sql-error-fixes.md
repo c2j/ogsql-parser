@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Reduce parse errors in GaussDB-2.23.07.210/sql/half-sql.sql from 876 to under 200
+**Goal:** Reduce parse errors in docs/references/GaussDB-2.23.07.210/sql/half-sql.sql from 876 to under 200
 
 **Architecture:** Fix cascading error recovery first (biggest bang), then fix primary parse failures in priority order. The 663 "reserved keyword" errors are mostly cascading from ~5 root-cause failures. The 214 "unexpected token" errors are real unsupported SQL constructs.
 

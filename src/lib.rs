@@ -52,16 +52,11 @@
     // grammar-rule readability. Combining conditions would obscure the grammar.
     clippy::if_same_then_else,
     clippy::unwrap_used,
-    clippy::large_enum_variant,
-    clippy::ptr_arg,
-    clippy::should_implement_trait,
-    clippy::unnecessary_literal_unwrap,
-    clippy::result_large_err,
-    unexpected_cfgs,
-    unreachable_patterns,
+    // Phase D deferred: dead_code — requires four-layer pub API protection
     dead_code,
-    unused_assignments,
-    unused_macros
+    // Phase A removed: unused_assignments, unused_macros — fix surfaced warnings instead of global allow
+    // Phase B+C removed: unreachable_patterns, unexpected_cfgs — fix surfaced warnings instead of global allow
+    // Phase E: removing clippy lints one-by-one — fix surfaced warnings instead of global allow
 )]
 
 pub mod analyzer;

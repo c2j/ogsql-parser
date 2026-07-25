@@ -79,7 +79,7 @@ fn test_parse_xxx() {
 
 **Files:**
 - Test: `src/parser/tests.rs`
-- Doc SQL: `GaussDB-2.23.07.210/sql/by_file/1333_EXPLAIN PLAN.sql`
+- Doc SQL: `docs/references/GaussDB-2.23.07.210/sql/by_file/1333_EXPLAIN PLAN.sql`
 
 **Step 1:** Read the existing EXPLAIN PLAN parser at `src/parser/utility/copy_explain.rs:536-596` and verify it handles `EXPLAIN PLAN [SET STATEMENT_ID = name] FOR statement`
 
@@ -483,7 +483,7 @@ These are dispatched via `dispatch_create()`:
 ### Implementation approach:
 Same pattern as Work Unit E — replace stub, implement parser, wire dispatch, format, test.
 
-Reference: GaussDB docs in `GaussDB-2.23.07.210/` directory for exact syntax.
+Reference: GaussDB docs in `docs/references/GaussDB-2.23.07.210/` directory for exact syntax.
 
 ---
 
@@ -540,7 +540,7 @@ Phase 2 (all parallel, after Phase 1 done):
 1. **Unit tests**: Each new parser method gets 2-3 tests in `src/parser/tests.rs`
 2. **Regression tests**: Run `cargo run --example regression` — must still pass 1409/1409
 3. **Round-trip tests**: SQL → Parse → JSON → Deserialize → Format → SQL (must be semantically equivalent)
-4. **GaussDB doc SQL**: Use example SQL from `GaussDB-2.23.07.210/sql/by_file/` as test cases
+4. **GaussDB doc SQL**: Use example SQL from `docs/references/GaussDB-2.23.07.210/sql/by_file/` as test cases
 
 ## Verification Commands
 
