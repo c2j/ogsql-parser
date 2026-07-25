@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: "0 0 * * 0"  # weekly security audit
+    - cron: "0 0 * * 0"  # weekly CI run (including security audit)
 
 env:
   CARGO_TERM_COLOR: always
