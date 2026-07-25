@@ -668,7 +668,7 @@ fn check_update_without_where(update: &UpdateStatement, warnings: &mut Vec<SqlWa
 
 ## References / 参考
 
-- GaussDB 2.23.07.210 文档: `GaussDB-2.23.07.210/term/`
+- GaussDB 2.23.07.210 文档: `docs/references/GaussDB-2.23.07.210/term/`
 - GaussDB SQL 查询最佳实践（分布式）: https://support.huaweicloud.com/bestpractice-gaussdb/gaussdb-22-0013.html
 - GaussDB SQL 编写规范: https://support.huaweicloud.com/intl/zh-cn/distributed-devg-v2-gaussdb/gaussdb-12-0052.html
 - GaussDB SELECT 规范: https://support.huaweicloud.com/centralized-devg-v8-gaussdb/gaussdb-42-2082.html

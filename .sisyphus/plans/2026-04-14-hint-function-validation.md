@@ -1063,9 +1063,9 @@ Expected: Clean build with no errors.
 
 Run the parser against the GaussDB hint SQL files:
 ```bash
-cargo run --bin ogsql -- validate -f GaussDB-2.23.07.210/sql/by_file/1004_Hint.sql
-cargo run --bin ogsql -- validate -f GaussDB-2.23.07.210/sql/by_file/1012_GUCHint.sql
-cargo run --bin ogsql -- validate -f GaussDB-2.23.07.210/sql/by_file/2705_Plan Hint.sql
+cargo run --bin ogsql -- validate -f docs/references/GaussDB-2.23.07.210/sql/by_file/1004_Hint.sql
+cargo run --bin ogsql -- validate -f docs/references/GaussDB-2.23.07.210/sql/by_file/1012_GUCHint.sql
+cargo run --bin ogsql -- validate -f docs/references/GaussDB-2.23.07.210/sql/by_file/2705_Plan Hint.sql
 ```
 
 Expected: Files parse successfully (may have warnings which is correct behavior).

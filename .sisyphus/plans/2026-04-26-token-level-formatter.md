@@ -460,7 +460,7 @@ fn cmd_format(cli: &Cli) {
 
 **Step 3: Verify**
 
-Run: `cargo run --features full -- format -f GaussDB-2.23.07.210/sql/errsp1.sql`
+Run: `cargo run --features full -- format -f docs/references/GaussDB-2.23.07.210/sql/errsp1.sql`
 Expected: properly indented, all original content preserved (comments, quotes, labels)
 
 **Step 4: Commit**
@@ -624,7 +624,7 @@ fix: SqlFormatter preserves package end_label
 **Step 1: Verify format preserves content**
 
 ```bash
-cargo run --features full -- format -f GaussDB-2.23.07.210/sql/errsp1.sql 2>/dev/null > /tmp/formatted.sql
+cargo run --features full -- format -f docs/references/GaussDB-2.23.07.210/sql/errsp1.sql 2>/dev/null > /tmp/formatted.sql
 ```
 
 Check:
@@ -637,7 +637,7 @@ Check:
 **Step 2: Verify json2sql round-trip**
 
 ```bash
-cargo run --features full -- parse -f GaussDB-2.23.07.210/sql/errsp1.sql -j | cargo run --features full -- json2sql 2>/dev/null
+cargo run --features full -- parse -f docs/references/GaussDB-2.23.07.210/sql/errsp1.sql -j | cargo run --features full -- json2sql 2>/dev/null
 ```
 
 Check:
