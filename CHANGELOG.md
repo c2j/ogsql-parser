@@ -2,6 +2,35 @@
 
 All notable changes to ogsql-parser will be documented in this file.
 
+## [0.8.33]
+
+### Changed
+- Codebase cleanup: add dual license files (LICENSE-MIT, LICENSE-APACHE)
+- Relocate GaussDB reference docs from repo root to `docs/references/`
+- Remove committed metadata files (.DS_Store, benchmark artifact) and stale/dead files
+- Consolidate plan directories (`docs/plans/` → `.sisyphus/plans/`)
+- Fix `BEST-PRATICE.md` typo → `BEST-PRACTICE.md`
+- Merge `testcases/` into `tests/fixtures/`
+- Fix placeholder repository URL in Cargo.toml
+- Remove empty `[dev-dependencies]` section
+
+### Added
+- CHANGELOG.md
+- CI: MSRV (Rust 1.70) verification job
+- CI: weekly scheduled run
+- CONTRIBUTING.md: documented minimal-vs-full submodule clone strategy
+
+### Fixed
+- Removed duplicate `stub_struct!` macro definition
+- Removed unnecessary `Vec::new()` initializations in grant parser
+- Removed duplicate `SetTransaction` match arm in formatter
+- Removed duplicate `INT_P`/`INTEGER` in `matches!` macro
+- Removed unreachable wildcard arm in token-to-string conversion
+- Removed dead `#[cfg_attr(feature = "serde")]` wrappers (serde is always-on)
+- Replaced standalone `into_iter()` with `impl IntoIterator for Parser`
+- Scoped `large_enum_variant` allow to AST modules with `[PERMANENT]` rationale
+- Fixed `&mut Vec` → `&mut [_]` for more general signature
+
 ## [0.8.32]
 
 ### Added
