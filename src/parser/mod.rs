@@ -773,10 +773,6 @@ impl Parser {
         offsets
     }
 
-    pub fn into_iter(self) -> StatementIter {
-        StatementIter { parser: self, done: false }
-    }
-
     pub fn parse_next(&mut self) -> Option<Result<crate::ast::Statement, ParserError>> {
         loop {
             match self.peek() {
@@ -5372,6 +5368,15 @@ impl Iterator for StatementIter {
                 None
             }
         }
+    }
+}
+
+impl IntoIterator for Parser {
+    type Item = Result<crate::ast::Statement, ParserError>;
+    type IntoIter = StatementIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        StatementIter { parser: self, done: false }
     }
 }
 

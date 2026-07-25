@@ -1,3 +1,8 @@
+// [PERMANENT] AST enums naturally have heterogeneous variant sizes
+// (e.g. SelectStatement vs NullLiteral). Boxing large variants would
+// break serde compatibility and add allocation overhead on the hot path.
+#![allow(clippy::large_enum_variant)]
+
 pub mod ident;
 pub mod plpgsql;
 

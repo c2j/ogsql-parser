@@ -1,5 +1,9 @@
 //! PL/pgSQL AST types for procedural language blocks.
 
+// [PERMANENT] AST enums naturally have heterogeneous variant sizes.
+// See ast/mod.rs for full rationale.
+#![allow(clippy::large_enum_variant)]
+
 use crate::ast::Spanned;
 use serde::{Deserialize, Serialize};
 use std::fmt;
