@@ -60,8 +60,7 @@
     unexpected_cfgs,
     unreachable_patterns,
     dead_code,
-    unused_assignments,
-    unused_macros
+    // Phase A removed: unused_assignments, unused_macros — fix surfaced warnings instead of global allow
 )]
 
 pub mod analyzer;

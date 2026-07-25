@@ -1802,15 +1802,6 @@ pub struct CallFuncStatement {
     pub builtin: Option<BuiltinFuncMeta>,
 }
 
-macro_rules! stub_struct {
-    ($($name:ident),+ $(,)?) => {
-        $(
-            #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-            pub struct $name { pub _stub: () }
-        )+
-    };
-}
-
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreateViewStatement {
     pub replace: bool,

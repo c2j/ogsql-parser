@@ -210,12 +210,10 @@ impl Parser {
     }
 
     pub(crate) fn parse_grant(&mut self) -> Result<GrantStatement, ParserError> {
-        let mut privileges = Vec::new();
-
         let mut with_grant_option = false;
         let mut granted_by = None;
 
-        privileges = self.parse_privileges()?;
+        let privileges = self.parse_privileges()?;
 
         self.expect_keyword(Keyword::ON)?;
 
@@ -240,12 +238,10 @@ impl Parser {
     }
 
     pub(crate) fn parse_revoke(&mut self) -> Result<RevokeStatement, ParserError> {
-        let mut privileges = Vec::new();
-
         let mut cascade = false;
         let mut granted_by = None;
 
-        privileges = self.parse_privileges()?;
+        let privileges = self.parse_privileges()?;
 
         self.expect_keyword(Keyword::ON)?;
 
