@@ -10545,7 +10545,7 @@ fn test_set_time_zone() {
 
 #[test]
 fn test_half_sql_baseline() {
-    let sql = std::fs::read_to_string("GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
+    let sql = std::fs::read_to_string("docs/references/GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
     let tokens = crate::Tokenizer::new(&sql).tokenize().unwrap();
     let mut parser = crate::parser::Parser::new(tokens);
     let stmts = parser.parse();
@@ -10562,7 +10562,7 @@ fn test_half_sql_baseline() {
 
 #[test]
 fn test_half_sql_categorize_failures() {
-    let sql = std::fs::read_to_string("GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
+    let sql = std::fs::read_to_string("docs/references/GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
     let tokens = crate::Tokenizer::new(&sql).tokenize().unwrap();
     let mut parser = crate::parser::Parser::new(tokens);
     let stmts = parser.parse();
@@ -10635,7 +10635,7 @@ fn test_half_sql_categorize_failures() {
 
 #[test]
 fn test_half_sql_failure_categories() {
-    let sql = std::fs::read_to_string("GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
+    let sql = std::fs::read_to_string("docs/references/GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
 
     let mut categories: std::collections::BTreeMap<String, (usize, Vec<String>)> = std::collections::BTreeMap::new();
     let mut current = String::new();

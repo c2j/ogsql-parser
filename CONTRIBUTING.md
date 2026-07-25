@@ -109,7 +109,7 @@ ogsql-parser/
 │   └── plans/              # 实现计划
 ├── lib/
 │   └── openGauss-server/   # 参考源码 (git submodule)
-└── GaussDB-2.23.07.210/    # 文档参考
+└── docs/references/GaussDB-2.23.07.210/    # 文档参考
 ```
 
 ---
@@ -127,8 +127,15 @@ ogsql-parser/
 ```bash
 git clone <repository-url>
 cd ogsql-parser
-git submodule update --init --recursive
+
+# 最小克隆（仅核心参考语法，~1.1GB）：
+git submodule update --init lib/openGauss-server
+
+# 完整克隆（含所有 Java 测试参考项目，额外 ~150MB）：
+# git submodule update --init --recursive
 ```
+
+> **注意**：`lib/` 下的 8 个 Java 子模块（ibatis-2, mybatis-spring, mybatis-crud 等）仅用于 iBatis/Java 功能的回归测试，日常开发无需克隆。
 
 ### 2.3 Feature 特性
 
@@ -262,7 +269,7 @@ cargo test --all-features
 - `lib/openGauss-server/src/test/regress/sql/` — 1,397 回归测试文件
 
 文档参考：
-- `GaussDB-2.23.07.210/term/` — GaussDB 术语和规范
+- `docs/references/GaussDB-2.23.07.210/term/` — GaussDB 术语和规范
 
 ---
 

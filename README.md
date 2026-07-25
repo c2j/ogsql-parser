@@ -196,7 +196,7 @@ ogsql-parser/
 │   └── plans/              # Implementation plans
 ├── lib/
 │   └── openGauss-server/   # Reference source (git submodule)
-└── GaussDB-2.23.07.210/    # Documentation reference
+└── docs/references/GaussDB-2.23.07.210/    # Documentation reference
 ```
 
 ---
@@ -817,7 +817,7 @@ This project references the following openGauss source files:
 - `lib/openGauss-server/src/test/regress/sql/` — 1,397 regression test files
 
 Documentation reference:
-- `GaussDB-2.23.07.210/term/` — GaussDB terminology and specifications
+- `docs/references/GaussDB-2.23.07.210/term/` — GaussDB terminology and specifications
 
 ---
 
