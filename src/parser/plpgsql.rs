@@ -202,8 +202,6 @@ impl Parser {
                 | Some(Keyword::TIMESTAMP)
                 | Some(Keyword::TIME)
                 | Some(Keyword::CHAR_P)
-                | Some(Keyword::INT_P)
-                | Some(Keyword::INTEGER)
                 | Some(Keyword::BIGINT)
                 | Some(Keyword::SMALLINT)
                 | Some(Keyword::REAL)

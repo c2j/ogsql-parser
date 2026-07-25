@@ -889,7 +889,6 @@ impl Parser {
                 Token::Comment(s) => s.clone(),
                 Token::Eof => String::new(),
                 Token::Hint(h) => format!("/*+ {} */", h),
-                _ => String::new(),
             })
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
