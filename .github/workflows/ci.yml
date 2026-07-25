@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "0 0 * * 0"  # weekly security audit
 
 env:
   CARGO_TERM_COLOR: always
@@ -45,3 +47,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: taiki-e/install-action@cargo-audit
       - run: cargo audit
+
+  msrv:
+    name: MSRV (Rust 1.70)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.70
+      - run: cargo check --all-features
