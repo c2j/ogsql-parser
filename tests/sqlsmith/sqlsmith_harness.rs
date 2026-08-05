@@ -943,7 +943,7 @@ fn cmd_run(args: &[String]) -> Result<(), String> {
     }
     summary.push_str("\n## by class (top 20)\n\n");
     let mut by_class: Vec<_> = counts_by_class.into_iter().collect();
-    by_class.sort_by(|a, b| b.1.cmp(&a.1));
+    by_class.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
     for (cls, n) in by_class.into_iter().take(20) {
         summary.push_str(&format!("- {cls}: {n}\n"));
     }
