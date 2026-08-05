@@ -1,0 +1,15 @@
+{
+  "id": "0001",
+  "slug": "unexpected-token",
+  "added_at": "epoch:1785938958",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:84c82c9d7dd19079",
+  "error_message": "unexpected token at line 1, column 39: expected RParen, got JdbcParam",
+  "error_class": "unexpected-token",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

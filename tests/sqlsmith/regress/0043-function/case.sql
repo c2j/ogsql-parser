@@ -1,0 +1,1 @@
+select pg_catalog.database_to_xml( cast(pg_catalog.pg_rotate_logfile_old() as bool), cast(pg_catalog.pg_rotate_logfile() as bool), cast(pg_catalog.pg_export_snapshot() as text)) as c0 from public.measurements_2024_q1 as sample_0 tablesample system (6.6) where false limit 56;

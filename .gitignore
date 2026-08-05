@@ -46,3 +46,7 @@ lcov.info
 # Misc
 /examples/gauss
 docs/reports/ogsql_bench_artifact.tar.gz
+
+# SQLsmith harness artifacts (only regress/ is committed as guard asset)
+tests/sqlsmith/fixtures/
+tests/sqlsmith/reports/

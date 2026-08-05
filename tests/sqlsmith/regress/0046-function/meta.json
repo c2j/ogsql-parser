@@ -1,0 +1,15 @@
+{
+  "id": "0046",
+  "slug": "function",
+  "added_at": "epoch:1785938965",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:d510c411d66cfb9e",
+  "error_message": "function xpath requires exactly 2 argument(s) at line 1, column 1631",
+  "error_class": "function",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": true,
+  "seed": "42",
+  "notes": null
+}

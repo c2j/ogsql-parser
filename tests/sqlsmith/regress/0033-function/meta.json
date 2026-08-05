@@ -1,0 +1,15 @@
+{
+  "id": "0033",
+  "slug": "function",
+  "added_at": "epoch:1785938960",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:d4bdbc90a55df98b",
+  "error_message": "function concat requires at least 2 argument(s) at line 1, column 352",
+  "error_class": "function",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

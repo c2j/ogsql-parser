@@ -1,0 +1,15 @@
+{
+  "id": "0015",
+  "slug": "unexpected-token",
+  "added_at": "epoch:1785938959",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:6da56aa15953a7fa",
+  "error_message": "unexpected token at line 1, column 1999: expected expression, got Percent",
+  "error_class": "unexpected-token",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

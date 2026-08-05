@@ -1,0 +1,15 @@
+{
+  "id": "0014",
+  "slug": "update",
+  "added_at": "epoch:1785938958",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:34c574fe3407f75c",
+  "error_message": "unsupported syntax at line 1, column 580: ON CONFLICT (use ON DUPLICATE KEY UPDATE instead (openGauss/GaussDB does not support PostgreSQL's ON CONFLICT syntax))",
+  "error_class": "update",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": true,
+  "seed": "42",
+  "notes": "openGauss 有意不支持 PG 的 ON CONFLICT（用 ON DUPLICATE KEY UPDATE 变体），ogsql-parser 有专门测试 test_insert_on_conflict_rejected 拒绝它。SQLsmith 生成 PG 方言，此案例为方言差异而非 bug。"
+}

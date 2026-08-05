@@ -1,0 +1,15 @@
+{
+  "id": "0026",
+  "slug": "function",
+  "added_at": "epoch:1785938959",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:507c2d5aa1a5709e",
+  "error_message": "function circle requires exactly 1 argument(s) at line 1, column 513",
+  "error_class": "function",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": true,
+  "seed": "42",
+  "notes": null
+}

@@ -1,0 +1,15 @@
+{
+  "id": "0047",
+  "slug": "function",
+  "added_at": "epoch:1785938966",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:42a341aab29c0bda",
+  "error_message": "function pg_get_triggerdef requires exactly 1 argument(s) at line 1, column 2151",
+  "error_class": "function",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": true,
+  "seed": "42",
+  "notes": null
+}

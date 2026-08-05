@@ -1,0 +1,15 @@
+{
+  "id": "0007",
+  "slug": "unexpected-token",
+  "added_at": "epoch:1785938958",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:aa7c410b4695912c",
+  "error_message": "unexpected token at line 1, column 1061: expected statement, got keyword on",
+  "error_class": "unexpected-token",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

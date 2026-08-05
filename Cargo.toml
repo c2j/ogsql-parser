@@ -66,6 +66,11 @@ name = "ogsql-mcp"
 path = "src/bin/ogsql-mcp.rs"
 required-features = ["mcp"]
 
+[[bin]]
+name = "sqlsmith-harness"
+path = "tests/sqlsmith/sqlsmith_harness.rs"
+required-features = ["cli"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

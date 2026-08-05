@@ -1,0 +1,19 @@
+# Dockerfile for sqlsmith — used by docker-compose.yaml.
+#
+# 把 sqlsmith 也容器化，让 tests/sqlsmith/ 完全自包含，
+# 宿主机不需要装 sqlsmith / pg_isready / psql。
+#
+# Containerizes sqlsmith so the test harness is fully self-contained:
+# host does not need sqlsmith / pg_isready / psql installed.
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        sqlsmith \
+        postgresql-client \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+ENTRYPOINT ["sqlsmith"]
