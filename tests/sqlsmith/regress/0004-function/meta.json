@@ -1,0 +1,15 @@
+{
+  "id": "0004",
+  "slug": "function",
+  "added_at": "epoch:1785938958",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:bd579faa88559db",
+  "error_message": "function pg_stat_file requires exactly 1 argument(s) at line 1, column 346",
+  "error_class": "function",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": true,
+  "seed": "42",
+  "notes": null
+}

@@ -1,0 +1,52 @@
+# Docker Compose for ogsql-parser SQLsmith test harness.
+#
+# 起两个服务：postgres（被测 schema）+ sqlsmith（语料生成器）。
+# 宿主机不需要装 sqlsmith / psql / pg_isready。
+#
+# Stands up two services: postgres (target schema) + sqlsmith (query generator).
+# Host does not need sqlsmith / psql / pg_isready installed.
+#
+# 用法 / Usage:
+#   docker compose up -d postgres   # 只起 postgres
+#   ./bin/corpus-gen.sh             # 脚本通过 docker compose run 调 sqlsmith
+#   docker compose down
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: ogsql-sqlsmith-pg
+    environment:
+      POSTGRES_USER: sqlsmith
+      POSTGRES_PASSWORD: sqlsmith
+      POSTGRES_DB: sqlsmith
+    ports:
+      - "15432:5432"
+    volumes:
+      - ./config/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sqlsmith -d sqlsmith"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    restart: "no"
+
+  sqlsmith:
+    build:
+      context: .
+      dockerfile: Dockerfile.sqlsmith
+    image: ogsql-sqlsmith-tool:latest
+    container_name: ogsql-sqlsmith-tool
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["sqlsmith"]
+    volumes:
+      - ./fixtures:/work/fixtures
+    working_dir: /work
+    restart: "no"

@@ -1,0 +1,15 @@
+{
+  "id": "0011",
+  "slug": "unexpected-token",
+  "added_at": "epoch:1785938958",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:75ffb284f4ec6039",
+  "error_message": "unexpected token at line 1, column 369: expected statement, got keyword right",
+  "error_class": "unexpected-token",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

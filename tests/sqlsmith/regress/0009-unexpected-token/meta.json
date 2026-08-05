@@ -1,0 +1,15 @@
+{
+  "id": "0009",
+  "slug": "unexpected-token",
+  "added_at": "epoch:1785938958",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:5ce6dc53b17b30c8",
+  "error_message": "unexpected token at line 1, column 1438: expected RParen, got At",
+  "error_class": "unexpected-token",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

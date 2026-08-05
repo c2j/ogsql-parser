@@ -1,0 +1,15 @@
+{
+  "id": "0036",
+  "slug": "function",
+  "added_at": "epoch:1785938961",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:c1b4322b589079b6",
+  "error_message": "function regexp_substr takes at most 4 argument(s) at line 1, column 402",
+  "error_class": "function",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

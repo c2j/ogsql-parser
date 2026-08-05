@@ -1,0 +1,15 @@
+{
+  "id": "0045",
+  "slug": "function",
+  "added_at": "epoch:1785938964",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:fa374cb46aa73ae7",
+  "error_message": "function width_bucket requires at least 3 argument(s) at line 1, column 360",
+  "error_class": "function",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

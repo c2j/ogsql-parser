@@ -1,0 +1,15 @@
+{
+  "id": "0031",
+  "slug": "cast",
+  "added_at": "epoch:1785938959",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:16fe1ddc5e7b1529",
+  "error_message": "reserved keyword \"cast\" cannot be used as identifier at line 1, column 1770",
+  "error_class": "cast",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

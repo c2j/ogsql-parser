@@ -1,0 +1,15 @@
+{
+  "id": "0005",
+  "slug": "unexpected-token",
+  "added_at": "epoch:1785938958",
+  "added_in_commit": "40743a4",
+  "kind": "PARSE_ERR",
+  "signature": "fnv1a:ef78453783beb931",
+  "error_message": "unexpected token at line 1, column 671: expected expression, got Op(\"~*\")",
+  "error_class": "unexpected-token",
+  "expected_outcome": "FAIL",
+  "fixed_in_commit": null,
+  "known_acceptable": false,
+  "seed": "42",
+  "notes": null
+}

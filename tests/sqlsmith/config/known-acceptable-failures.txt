@@ -1,0 +1,35 @@
+# ============================================================
+# 已知可接受失败白名单 / Known acceptable failures
+# ============================================================
+# 行格式 / Line format:
+#   PREFIX:|:<text>    —— 子串包含匹配 / substring contains
+#   REGEX:|:<pattern>  —— 极简 glob，仅支持 `*` 通配符 / minimal glob, only `*` wildcard
+#                         例：'foo*bar' 匹配任何包含 'foo' 后跟 'bar' 的文本
+#
+# 匹配的失败会被 harness 标记为 known_acceptable=true，
+# 不计入 regression，但仍保留在 regress/ 中以便追溯。
+# ============================================================
+
+# --- PostgreSQL 内部 catalog 函数（openGauss 不完全覆盖） ---
+REGEX:|:function pg_*requires
+REGEX:|:function pg_*takes
+
+# --- PostgreSQL 几何类型函数（openGauss 不支持 point/circle/polygon/box/lseg） ---
+REGEX:|:function point*requires
+REGEX:|:function circle*requires
+REGEX:|:function polygon*requires
+REGEX:|:function box*requires
+REGEX:|:function lseg*requires
+
+# --- PostgreSQL XML 函数（openGauss 部分支持，arity 可能不同） ---
+REGEX:|:function cursor_to_xml
+REGEX:|:function database_to_xml
+REGEX:|:function xpath*requires
+
+# --- PostgreSQL 14+ 专有 DDL 语法 ---
+PREFIX:|:CREATE INDEX CONCURRENTLY
+PREFIX:|:REINDEX CONCURRENTLY
+PREFIX:|:CREATE STATISTICS
+
+# --- pg_catalog.* 调用（openGauss 仅部分覆盖） ---
+PREFIX:|:pg_catalog.
