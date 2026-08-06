@@ -932,6 +932,10 @@ fn collect_selects_from_expr<'a>(expr: &'a crate::ast::Expr, out: &mut Vec<(&'a 
             collect_nested_in_select(subquery, out);
             collect_selects_from_expr(expr, out);
         }
+        Expr::AtTimeZone { expr, zone } => {
+            collect_selects_from_expr(expr, out);
+            collect_selects_from_expr(zone, out);
+        }
         Expr::BinaryOp { left, right, .. } => {
             collect_selects_from_expr(left, out);
             collect_selects_from_expr(right, out);
