@@ -8072,6 +8072,27 @@ fn test_typefuncname_keyword_as_implicit_alias() {
     }
 }
 
+#[test]
+fn test_reserved_keyword_as_column_alias_allowed() {
+    // openGauss allows function-style reserved keywords as explicit AS column aliases
+    assert_valid("SELECT 1 AS current_user");
+    assert_valid("SELECT 1 AS cast");
+    assert_valid("SELECT 1 AS session_user");
+    assert_valid("SELECT 1 AS current_date");
+    assert_valid("SELECT 1 AS sysdate");
+}
+
+#[test]
+fn test_reserved_keyword_as_column_alias_rejects_clausal() {
+    // Clausal keywords (FROM, WHERE, etc.) should still be rejected even with AS
+    let (_, errors) = parse_with_errors("SELECT 1 AS FROM");
+    assert!(
+        errors.iter().any(|e| e.to_string().to_lowercase().contains("from")),
+        "FROM after AS should be rejected: {:?}",
+        errors
+    );
+}
+
 // ========== Work Unit A: Quick Wins (P0-4 + P0-5) ==========
 
 // --- EXPLAIN PLAN (P0-4: Verify existing implementation) ---

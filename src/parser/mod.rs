@@ -5387,7 +5387,7 @@ impl Iterator for StatementIter {
 
 /// Reserved keywords that openGauss permits as identifiers after explicit `AS`.
 /// e.g., `SELECT 1 AS current_user` — these are function-style reserved words.
-fn is_allowed_as_alias(kw: &crate::token::keyword::Keyword) -> bool {
+pub(crate) fn is_allowed_as_alias(kw: &crate::token::keyword::Keyword) -> bool {
     use crate::token::keyword::Keyword;
     matches!(
         kw,

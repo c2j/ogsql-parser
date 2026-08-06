@@ -3,6 +3,7 @@ use crate::ast::{
     PivotValue, SelectIntoTable, SelectStatement, SelectTarget, SetOperation, TableRef, TableSampleClause,
     UnpivotClause, ValuesStatement, WithClause,
 };
+use crate::parser::is_allowed_as_alias;
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -400,7 +401,17 @@ impl Parser {
         let expr = self.parse_expr()?;
         let alias = if self.match_keyword(Keyword::AS) {
             self.advance();
-            Some(self.parse_ident()?)
+            if let Token::Keyword(kw) = self.peek() {
+                if is_allowed_as_alias(kw) {
+                    let name = kw.as_str().to_string();
+                    self.advance();
+                    Some(crate::ast::Ident::new(name))
+                } else {
+                    Some(self.parse_ident()?)
+                }
+            } else {
+                Some(self.parse_ident()?)
+            }
         } else {
             self.parse_optional_column_alias()?
         };
