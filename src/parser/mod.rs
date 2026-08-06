@@ -999,6 +999,13 @@ impl Parser {
     fn parse_optional_column_alias(&mut self) -> Result<Option<crate::ast::Ident>, ParserError> {
         if self.match_keyword(Keyword::AS) {
             self.advance();
+            if let Token::Keyword(kw) = self.peek() {
+                if is_allowed_as_alias(kw) {
+                    let name = kw.as_str().to_string();
+                    self.advance();
+                    return Ok(Some(crate::ast::Ident::new(name)));
+                }
+            }
             Ok(Some(self.parse_ident()?))
         } else {
             match self.peek() {
