@@ -966,6 +966,14 @@ impl Parser {
     fn parse_optional_alias(&mut self) -> Result<Option<crate::ast::Ident>, ParserError> {
         if self.match_keyword(Keyword::AS) {
             self.advance();
+            // Allow reserved keywords after AS (openGauss permits: SELECT 1 AS current_user)
+            if let Token::Keyword(kw) = self.peek() {
+                if kw.category() == crate::token::keyword::KeywordCategory::Reserved {
+                    let name = kw.as_str().to_string();
+                    self.advance();
+                    return Ok(Some(crate::ast::Ident::new(name)));
+                }
+            }
             Ok(Some(self.parse_ident()?))
         } else {
             match self.peek() {

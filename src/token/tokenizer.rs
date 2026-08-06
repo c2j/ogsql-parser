@@ -499,7 +499,22 @@ impl<'a> Tokenizer<'a> {
             }
             '%' => {
                 self.advance();
-                Token::Percent
+                let start = self.pos - 1;
+                loop {
+                    let next = self.peek();
+                    if let Some(c) = next {
+                        if is_op_char(c) && c != ';' && c != '+' && c != '-' && c != '*' && c != '/' {
+                            self.advance();
+                            continue;
+                        }
+                    }
+                    break;
+                }
+                if self.pos > start + 1 {
+                    Token::Op(self.input[start..self.pos].to_string())
+                } else {
+                    Token::Percent
+                }
             }
             '^' => {
                 self.advance();
@@ -636,7 +651,24 @@ impl<'a> Tokenizer<'a> {
                         self.advance();
                         Token::Op("<^".to_string())
                     }
-                    _ => Token::Lt,
+                    _ => {
+                        let start = self.pos - 1;
+                        loop {
+                            let next = self.peek();
+                            if let Some(c) = next {
+                                if is_op_char(c) && c != ';' && c != '<' && c != '>' {
+                                    self.advance();
+                                    continue;
+                                }
+                            }
+                            break;
+                        }
+                        if self.pos > start + 1 {
+                            Token::Op(self.input[start..self.pos].to_string())
+                        } else {
+                            Token::Lt
+                        }
+                    }
                 }
             }
 
@@ -740,7 +772,35 @@ impl<'a> Tokenizer<'a> {
 
             '?' => {
                 self.advance();
-                Token::JdbcParam
+                // Distinguish JSONB/geometric operators from JDBC placeholder:
+                // ?| (supplementary-same-as-vertical), ?& (supplementary-all-keys),
+                // ?- (supplementary-horizontal), ?-| (supplementary-perpendicular),
+                // ?|| (supplementary-concatenation). All others stay JdbcParam.
+                match self.peek() {
+                    Some('|') => {
+                        self.advance();
+                        if self.peek() == Some('|') {
+                            self.advance();
+                            Token::Op("?||".to_string())
+                        } else {
+                            Token::Op("?|".to_string())
+                        }
+                    }
+                    Some('&') => {
+                        self.advance();
+                        Token::Op("?&".to_string())
+                    }
+                    Some('-') => {
+                        self.advance();
+                        if self.peek() == Some('|') {
+                            self.advance();
+                            Token::Op("?-|".to_string())
+                        } else {
+                            Token::Op("?-".to_string())
+                        }
+                    }
+                    _ => Token::JdbcParam,
+                }
             }
 
             '\\' => {

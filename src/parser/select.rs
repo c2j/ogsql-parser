@@ -43,6 +43,34 @@ impl Parser {
     }
 
     pub(crate) fn parse_set_operations(&mut self, mut stmt: SelectStatement) -> Result<SelectStatement, ParserError> {
+        // Track the rightmost set_operation field (where next set_op is appended).
+        // Walk to the leaf first in case stmt already has a chain.
+        let mut tail: *mut Option<SetOperation> = &mut stmt.set_operation;
+        // Walk to rightmost leaf
+        loop {
+            let at_leaf = unsafe {
+                match (*tail).as_mut() {
+                    Some(set_op) => {
+                        let right: &mut Box<SelectStatement> = match set_op {
+                            SetOperation::Union { ref mut right, .. } => right,
+                            SetOperation::Intersect { ref mut right, .. } => right,
+                            SetOperation::Except { ref mut right, .. } => right,
+                        };
+                        if right.set_operation.is_some() {
+                            tail = &raw mut right.set_operation;
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                    None => true,
+                }
+            };
+            if at_leaf {
+                break;
+            }
+        }
+
         loop {
             let (op, all) = match self.peek_keyword() {
                 Some(Keyword::UNION) => {
@@ -73,7 +101,21 @@ impl Parser {
                 "intersect" => SetOperation::Intersect { all, right: Box::new(right) },
                 _ => SetOperation::Except { all, right: Box::new(right) },
             };
-            stmt.set_operation = Some(set_op);
+            // SAFETY: tail is always a valid pointer into stmt (or its right chain).
+            unsafe {
+                *tail = Some(set_op);
+            }
+            // Advance tail to the new right's set_operation
+            unsafe {
+                if let Some(ref mut set_op) = (*tail).as_mut() {
+                    let right = match set_op {
+                        SetOperation::Union { ref mut right, .. } => right,
+                        SetOperation::Intersect { ref mut right, .. } => right,
+                        SetOperation::Except { ref mut right, .. } => right,
+                    };
+                    tail = &raw mut right.set_operation;
+                }
+            }
         }
         Ok(stmt)
     }
@@ -437,7 +479,7 @@ impl Parser {
         }
     }
 
-    fn try_consume_table_modifiers(&mut self, table_ref: &mut TableRef) {
+    pub(crate) fn try_consume_table_modifiers(&mut self, table_ref: &mut TableRef) {
         if self.match_keyword(Keyword::PARTITION) {
             if let Ok(Some(p)) = self.try_parse_partition_ref(Keyword::PARTITION) {
                 if let TableRef::Table { partition: ref mut pp, .. } = table_ref {

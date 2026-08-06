@@ -580,6 +580,7 @@ impl Parser {
         self.expect_keyword(Keyword::USING)?;
         let mut source = self.parse_table_ref()?;
         let source_partition = self.parse_dml_partition()?;
+        self.try_consume_table_modifiers(&mut source);
         if let TableRef::Table { ref mut alias, .. } = source {
             if alias.is_none() {
                 *alias = self.parse_optional_alias()?;

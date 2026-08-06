@@ -492,7 +492,7 @@ static FUNCTIONS: &[FuncMeta] = &[
     f!("clock_timestamp", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(0), false),
     f!("coalesce", FuncCategory::Special, FuncDomain::Other, 2, None, false),
     f!("col_description", FuncCategory::Scalar, FuncDomain::System, 2, Some(3), false),
-    f!("concat", FuncCategory::Scalar, FuncDomain::String, 2, None, false),
+    f!("concat", FuncCategory::Scalar, FuncDomain::String, 1, None, false),
     f!("concat_ws", FuncCategory::Scalar, FuncDomain::String, 2, None, false),
     f!("convert", FuncCategory::Scalar, FuncDomain::TypeConversion, 2, Some(3), false),
     f!("convert_from", FuncCategory::Scalar, FuncDomain::TypeConversion, 2, Some(2), false),
@@ -1274,13 +1274,13 @@ static FUNCTIONS: &[FuncMeta] = &[
     f!("rawtohex", FuncCategory::Scalar, FuncDomain::TypeConversion, 1, Some(1), false),
     fo!("rawtohex2", FuncCategory::Scalar, FuncDomain::TypeConversion, 1, Some(1), false),
     f!("regexp_count", FuncCategory::Scalar, FuncDomain::String, 2, Some(4), false),
-    f!("regexp_instr", FuncCategory::Scalar, FuncDomain::String, 2, Some(5), false),
+    f!("regexp_instr", FuncCategory::Scalar, FuncDomain::String, 2, Some(6), false),
     f!("regexp_like", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
     f!("regexp_matches", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
     f!("regexp_replace", FuncCategory::Scalar, FuncDomain::String, 2, Some(6), false),
     f!("regexp_split_to_array", FuncCategory::Scalar, FuncDomain::String, 1, Some(3), false),
     f!("regexp_split_to_table", FuncCategory::SetReturning, FuncDomain::String, 1, Some(3), false),
-    f!("regexp_substr", FuncCategory::Scalar, FuncDomain::String, 2, Some(4), false),
+    f!("regexp_substr", FuncCategory::Scalar, FuncDomain::String, 2, Some(5), false),
     f!("regr_avgx", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
     f!("regr_avgy", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
     f!("regr_count", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
@@ -1424,7 +1424,7 @@ static FUNCTIONS: &[FuncMeta] = &[
     fc!("weekday", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(1), false),
     fc!("weekofyear", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(1), false),
     f!("width", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
-    f!("width_bucket", FuncCategory::Scalar, FuncDomain::Math, 3, Some(4), false),
+    f!("width_bucket", FuncCategory::Scalar, FuncDomain::Math, 4, Some(4), false),
     fo!("wm_concat", FuncCategory::Aggregate, FuncDomain::String, 1, None, true),
     // ── X ───────────────────────────────────────────────────
     f!("xml_is_well_formed", FuncCategory::Scalar, FuncDomain::Xml, 1, Some(1), false),
@@ -1896,7 +1896,7 @@ mod tests {
         // concat is variadic
         assert!(concat.max_args.is_none());
         assert!(concat_ws.max_args.is_none());
-        assert_eq!(concat.min_args, 2);
+        assert_eq!(concat.min_args, 1);
         assert_eq!(concat_ws.min_args, 2);
     }
 

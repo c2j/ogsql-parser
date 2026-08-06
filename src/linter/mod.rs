@@ -725,6 +725,10 @@ pub fn walk_expr(expr: &crate::ast::Expr, f: &mut dyn FnMut(&crate::ast::Expr) -
             }
         }
         Expr::XmlSerialize { expr, .. } => walk_expr(expr, f),
+        Expr::AtTimeZone { expr, zone } => {
+            walk_expr(expr, f);
+            walk_expr(zone, f);
+        }
     }
 }
 
@@ -1053,7 +1057,8 @@ fn collect_selects_from_expr<'a>(expr: &'a crate::ast::Expr, out: &mut Vec<(&'a 
         | Expr::MyBatisRawExpr(_)
         | Expr::JdbcParam
         | Expr::XmlElement { .. }
-        | Expr::CollationFor { .. } => {}
+        | Expr::CollationFor { .. }
+        | Expr::AtTimeZone { .. } => {}
     }
 }
 
