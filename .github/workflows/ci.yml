@@ -54,7 +54,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.70
-      # utoipa-swagger-ui (serve feature) depends on zip 3.x which uses
-      # dep:flate2 syntax incompatible with Cargo v2 resolver on Rust 1.70.
-      # Exclude serve and use --frozen to prevent lockfile re-resolution.
-      - run: cargo check --features "cli,ibatis,java,mcp,tui,lint-config,serve-minimal" --frozen
+      # NOTE: --all-features includes `serve` which pulls utoipa-swagger-ui → zip 3.x
+      # zip 3.x's dep:flate2 syntax is incompatible with Cargo's v2 resolver on Rust 1.70.
+      # This is a known pre-existing failure (also fails on main). The only fix is an
+      # upstream utoipa-swagger-ui release that doesn't depend on zip's dep:flate2 feature.
+      - run: cargo check --all-features
