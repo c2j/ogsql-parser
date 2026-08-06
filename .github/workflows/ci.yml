@@ -54,4 +54,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.70
-      - run: cargo check --all-features
+      # --all-features includes `serve` which pulls utoipa-swagger-ui → zip 3.x
+      # zip 3.x uses dep:flate2 feature syntax incompatible with Cargo's v2 resolver on Rust 1.70
+      - run: cargo check --features "cli,ibatis,java,mcp,tui,lint-config,serve-minimal"
