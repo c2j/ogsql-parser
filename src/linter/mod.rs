@@ -1061,8 +1061,7 @@ fn collect_selects_from_expr<'a>(expr: &'a crate::ast::Expr, out: &mut Vec<(&'a 
         | Expr::MyBatisRawExpr(_)
         | Expr::JdbcParam
         | Expr::XmlElement { .. }
-        | Expr::CollationFor { .. }
-        | Expr::AtTimeZone { .. } => {}
+        | Expr::CollationFor { .. } => {}
     }
 }
 
