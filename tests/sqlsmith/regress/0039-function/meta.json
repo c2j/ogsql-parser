@@ -7,8 +7,8 @@
   "signature": "fnv1a:f5f3a18620533f15",
   "error_message": "function pg_read_file takes at most 3 argument(s) at line 1, column 582",
   "error_class": "function",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "d88306a",
   "known_acceptable": true,
   "seed": "42",
   "notes": null

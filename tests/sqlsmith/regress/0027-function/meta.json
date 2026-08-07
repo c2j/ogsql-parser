@@ -7,8 +7,8 @@
   "signature": "fnv1a:566ce2b3720aca04",
   "error_message": "function polygon requires exactly 1 argument(s) at line 1, column 1642",
   "error_class": "function",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "d88306a",
   "known_acceptable": true,
   "seed": "42",
   "notes": null

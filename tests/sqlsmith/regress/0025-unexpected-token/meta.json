@@ -7,8 +7,8 @@
   "signature": "fnv1a:aba759d72dedd3d6",
   "error_message": "unexpected token at line 1, column 1516: expected expression, got Gt",
   "error_class": "unexpected-token",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "d88306a",
   "known_acceptable": false,
   "seed": "42",
   "notes": null

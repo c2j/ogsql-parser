@@ -7,8 +7,8 @@
   "signature": "fnv1a:d4bdbc90a55df98b",
   "error_message": "function concat requires at least 2 argument(s) at line 1, column 352",
   "error_class": "function",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "d88306a",
   "known_acceptable": false,
   "seed": "42",
   "notes": null

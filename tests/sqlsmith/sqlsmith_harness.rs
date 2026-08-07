@@ -13,7 +13,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use ogsql_parser::{Parser, SqlFormatter, Tokenizer};
+use ogsql_parser::{Parser, ParserError, SqlFormatter, Tokenizer};
 
 // ============================================================
 // 公共类型 / Common types
@@ -95,9 +95,12 @@ fn try_parse(sql: &str, do_roundtrip: bool) -> Outcome {
     let mut parser = Parser::with_source(tokens, sql.to_string());
     let stmts = parser.parse();
     let has_empty = stmts.iter().any(|s| matches!(s, ogsql_parser::Statement::Empty));
-    if parser.has_errors() || has_empty {
+    // 仅硬错误算失败：Warning / ReservedKeywordAsIdentifier 是软提示（is_warning），
+    // 例如函数 arity 警告、保留字 AS-alias——不应计为 parse 失败。
+    let hard_errors: Vec<&ParserError> = parser.errors().iter().filter(|e| !ogsql_parser::is_warning(e)).collect();
+    if !hard_errors.is_empty() || has_empty {
         let err_msg =
-            parser.errors().first().map(|e| e.to_string()).unwrap_or_else(|| "Statement::Empty (recovery)".to_string());
+            hard_errors.first().map(|e| e.to_string()).unwrap_or_else(|| "Statement::Empty (recovery)".to_string());
         return Outcome::Fail {
             kind: FailureKind::ParseErr,
             error_class: classify_error(&err_msg, "parse"),
@@ -128,9 +131,10 @@ fn try_parse(sql: &str, do_roundtrip: bool) -> Outcome {
     let mut parser2 = Parser::with_source(reparsed_tokens, sql_prime.clone());
     let stmts2 = parser2.parse();
     let has_empty2 = stmts2.iter().any(|s| matches!(s, ogsql_parser::Statement::Empty));
-    if parser2.has_errors() || has_empty2 {
+    let hard_errors2: Vec<&ParserError> = parser2.errors().iter().filter(|e| !ogsql_parser::is_warning(e)).collect();
+    if !hard_errors2.is_empty() || has_empty2 {
         let err_msg =
-            parser2.errors().first().map(|e| e.to_string()).unwrap_or_else(|| "reparse Statement::Empty".to_string());
+            hard_errors2.first().map(|e| e.to_string()).unwrap_or_else(|| "reparse Statement::Empty".to_string());
         return Outcome::Fail {
             kind: FailureKind::RoundtripReparseErr,
             error_message: format!("reparse failed: {err_msg}"),

@@ -1,9 +1,9 @@
 {
   "total_cases": 47,
-  "expected_fail": 47,
-  "expected_ok": 0,
-  "still_failing": 47,
+  "expected_fail": 33,
+  "expected_ok": 14,
+  "still_failing": 33,
   "fixed": 0,
   "regressions": 0,
-  "generated_at": "epoch:1785940160"
+  "generated_at": "epoch:1786119953"
 }

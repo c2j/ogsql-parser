@@ -7,8 +7,8 @@
   "signature": "fnv1a:17c0348948886e1a",
   "error_message": "function database_to_xml requires exactly 4 argument(s) at line 1, column 181",
   "error_class": "function",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "d88306a",
   "known_acceptable": true,
   "seed": "42",
   "notes": null

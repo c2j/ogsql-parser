@@ -7,8 +7,8 @@
   "signature": "fnv1a:c76154c680462604",
   "error_message": "function pg_terminate_backend requires exactly 1 argument(s) at line 1, column 430",
   "error_class": "function",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "d88306a",
   "known_acceptable": true,
   "seed": "42",
   "notes": null

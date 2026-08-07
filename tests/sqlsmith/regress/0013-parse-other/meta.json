@@ -7,8 +7,8 @@
   "signature": "fnv1a:7cba88441e5a0294",
   "error_message": "reserved keyword \"current_user\" cannot be used as identifier at line 1, column 161",
   "error_class": "parse-other",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "d88306a",
   "known_acceptable": false,
   "seed": "42",
   "notes": null

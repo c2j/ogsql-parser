@@ -7,8 +7,8 @@
   "signature": "fnv1a:1dd4d12b3a6b9860",
   "error_message": "function date_trunc requires exactly 2 argument(s) at line 1, column 370",
   "error_class": "function",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "d88306a",
   "known_acceptable": false,
   "seed": "42",
   "notes": null
