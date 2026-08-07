@@ -7,9 +7,9 @@
   "signature": "fnv1a:d510c411d66cfb9e",
   "error_message": "function xpath requires exactly 2 argument(s) at line 1, column 1631",
   "error_class": "function",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
-  "known_acceptable": true,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "LOCAL-UNCOMMITTED",
+  "known_acceptable": false,
   "seed": "42",
   "notes": null
 }

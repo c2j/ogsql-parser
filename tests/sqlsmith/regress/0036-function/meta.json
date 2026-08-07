@@ -9,7 +9,7 @@
   "error_class": "function",
   "expected_outcome": "FAIL",
   "fixed_in_commit": null,
-  "known_acceptable": false,
+  "known_acceptable": true,
   "seed": "42",
-  "notes": null
+  "notes": "SQLsmith 生成器缺陷：INNER/RIGHT/LEFT JOIN 之间缺失 ON 条件（JOIN X tablesample ... JOIN Y 无 ON）。真实 postgres 验证为非法 SQL，ogsql 拒绝是正确的。"
 }

@@ -1097,6 +1097,8 @@ impl Parser {
                 | Keyword::FULL
                 | Keyword::NATURAL
                 | Keyword::JOIN
+                | Keyword::TABLESAMPLE
+                | Keyword::SAMPLE
         )
     }
 

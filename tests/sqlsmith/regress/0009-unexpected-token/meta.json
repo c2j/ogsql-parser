@@ -7,8 +7,8 @@
   "signature": "fnv1a:5ce6dc53b17b30c8",
   "error_message": "unexpected token at line 1, column 1438: expected RParen, got At",
   "error_class": "unexpected-token",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "LOCAL-UNCOMMITTED",
   "known_acceptable": false,
   "seed": "42",
   "notes": null

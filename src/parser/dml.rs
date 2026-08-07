@@ -599,6 +599,13 @@ impl Parser {
                 self.expect_keyword(Keyword::MATCHED)?;
                 true
             };
+            // WHEN [NOT] MATCHED AND <condition>：条件在 THEN 之前
+            let when_condition = if self.match_keyword(Keyword::AND) {
+                self.advance();
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
             self.expect_keyword(Keyword::THEN)?;
             let action = if self.match_keyword(Keyword::UPDATE) {
                 self.advance();
@@ -652,7 +659,7 @@ impl Parser {
                 self.advance();
                 Some(self.parse_expr()?)
             } else {
-                None
+                when_condition
             };
             when_clauses.push(MergeWhenClause { matched, action, where_clause });
         }

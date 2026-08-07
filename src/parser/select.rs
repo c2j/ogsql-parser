@@ -442,16 +442,11 @@ impl Parser {
             return Ok(vec![]);
         }
         self.advance();
+        // parse_table_ref 内部已消费首项的 modifiers + alias（含 JOIN 链上的每项）
         let mut tables = vec![self.parse_table_ref()?];
-        self.try_consume_table_modifiers(&mut tables[0]);
-        self.try_consume_table_alias(&mut tables[0]);
         while self.match_token(&Token::Comma) {
             self.advance();
             tables.push(self.parse_table_ref()?);
-            if let Some(last) = tables.last_mut() {
-                self.try_consume_table_modifiers(last);
-                self.try_consume_table_alias(last);
-            }
         }
         Ok(tables)
     }
@@ -459,11 +454,19 @@ impl Parser {
     fn try_consume_table_alias(&mut self, table_ref: &mut TableRef) {
         if let TableRef::Table { alias, .. } = table_ref {
             if alias.is_none() {
+                // PIVOT/UNPIVOT 是 table 后置子句（Token::Ident），不能被当作别名消费
+                if self.peek_token_is_pivot_keyword() {
+                    return;
+                }
                 if let Ok(Some(a)) = self.parse_optional_alias() {
                     *alias = Some(a);
                 }
             }
         }
+    }
+
+    fn peek_token_is_pivot_keyword(&self) -> bool {
+        matches!(&self.tokens.get(self.pos).map(|t| &t.token), Some(Token::Ident(s)) if s.eq_ignore_ascii_case("PIVOT") || s.eq_ignore_ascii_case("UNPIVOT"))
     }
 
     pub(crate) fn try_consume_table_modifiers(&mut self, table_ref: &mut TableRef) {
@@ -585,6 +588,11 @@ impl Parser {
 
     pub(crate) fn parse_table_ref(&mut self) -> Result<TableRef, ParserError> {
         let mut left = self.parse_primary_table_ref()?;
+        // 首项先消费 table modifiers（tablesample/partition/timecapsule）和别名，
+        // 否则 `FROM a tablesample system (N) INNER JOIN b ...` 会在 JOIN 检查前
+        // 看到残留的 TABLESAMPLE 令牌而提前 break。
+        self.try_consume_table_modifiers(&mut left);
+        self.try_consume_table_alias(&mut left);
         loop {
             let natural = self.match_keyword(Keyword::NATURAL);
             if natural {
@@ -630,7 +638,12 @@ impl Parser {
                     break;
                 }
             };
-            let right = self.parse_primary_table_ref()?;
+            let mut right = self.parse_primary_table_ref()?;
+            // JOIN 右侧同样消费 table modifiers（tablesample/partition/timecapsule）和别名，
+            // 与 FROM 子句第一项对称——否则 `JOIN t tablesample system (N) ON ...` 会残留
+            // TABLESAMPLE 令牌导致 ON 解析错位。
+            self.try_consume_table_modifiers(&mut right);
+            self.try_consume_table_alias(&mut right);
             let (condition, using_columns) = if !natural && join_type != JoinType::Cross {
                 if self.match_keyword(Keyword::ON) {
                     self.advance();

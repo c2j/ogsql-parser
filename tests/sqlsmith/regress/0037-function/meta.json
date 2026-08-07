@@ -11,5 +11,5 @@
   "fixed_in_commit": null,
   "known_acceptable": true,
   "seed": "42",
-  "notes": null
+  "notes": "SQLsmith 生成器缺陷：JOIN 缺失 ON 条件（真实 postgres 验证为非法 SQL）。"
 }

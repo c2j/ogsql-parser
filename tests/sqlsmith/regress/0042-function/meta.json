@@ -7,8 +7,8 @@
   "signature": "fnv1a:f81dea30aec0303e",
   "error_message": "function regexp_instr takes at most 5 argument(s) at line 1, column 2763",
   "error_class": "function",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "LOCAL-UNCOMMITTED",
   "known_acceptable": false,
   "seed": "42",
   "notes": null

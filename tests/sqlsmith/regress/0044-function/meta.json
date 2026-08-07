@@ -9,7 +9,7 @@
   "error_class": "function",
   "expected_outcome": "OK",
   "fixed_in_commit": "d88306a",
-  "known_acceptable": true,
+  "known_acceptable": false,
   "seed": "42",
   "notes": null
 }

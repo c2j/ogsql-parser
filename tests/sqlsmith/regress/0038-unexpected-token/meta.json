@@ -9,7 +9,7 @@
   "error_class": "unexpected-token",
   "expected_outcome": "FAIL",
   "fixed_in_commit": null,
-  "known_acceptable": false,
+  "known_acceptable": true,
   "seed": "42",
-  "notes": null
+  "notes": "SQLsmith 生成器缺陷：position(a, b) 逗号形式。PG/openGauss 只支持 position(substr in str)，真实 postgres 验证为非法 SQL。"
 }

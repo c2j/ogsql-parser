@@ -7,8 +7,8 @@
   "signature": "fnv1a:ef78453783beb931",
   "error_message": "unexpected token at line 1, column 671: expected expression, got Op(\"~*\")",
   "error_class": "unexpected-token",
-  "expected_outcome": "FAIL",
-  "fixed_in_commit": null,
+  "expected_outcome": "OK",
+  "fixed_in_commit": "LOCAL-UNCOMMITTED",
   "known_acceptable": false,
   "seed": "42",
   "notes": null

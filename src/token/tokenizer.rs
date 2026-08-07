@@ -467,6 +467,19 @@ impl<'a> Tokenizer<'a> {
                 } else if self.peek() == Some('>') {
                     self.advance();
                     Token::Op("@>".to_string())
+                } else if self.peek() == Some('?') {
+                    // @? JSONPath 存在性测试
+                    self.advance();
+                    Token::Op("@?".to_string())
+                } else if self.peek() == Some('-') {
+                    // @-@ 几何长度操作符
+                    self.advance();
+                    if self.peek() == Some('@') {
+                        self.advance();
+                        Token::Op("@-@".to_string())
+                    } else {
+                        Token::Op("@-".to_string())
+                    }
                 } else {
                     Token::At
                 }
@@ -597,7 +610,23 @@ impl<'a> Tokenizer<'a> {
 
             '*' => {
                 self.advance();
-                Token::Star
+                // *>= 等复合操作符：* 后紧跟操作符字符时贪婪消费为单个 Token::Op
+                // （如 *>, *>=, *<, *<>）。a * b 乘法中 * 后是标识符/数字，不受影响。
+                let start = self.pos - 1;
+                let mut consumed = false;
+                while let Some(c) = self.peek() {
+                    if is_op_char(c) && !matches!(c, ';' | '+' | '-' | '/' | '(' | ')' | ',') {
+                        self.advance();
+                        consumed = true;
+                    } else {
+                        break;
+                    }
+                }
+                if consumed {
+                    Token::Op(self.input[start..self.pos].to_string())
+                } else {
+                    Token::Star
+                }
             }
             '/' => {
                 self.advance();
@@ -639,6 +668,18 @@ impl<'a> Tokenizer<'a> {
                         } else if self.peek() == Some('=') {
                             self.advance();
                             Token::Op("<<=".to_string())
+                        } else if self.peek() == Some('%') {
+                            // <<% (array prefix containment)、<<<<% 等：贪婪消费后续操作符字符
+                            self.advance();
+                            let start = self.pos - 2;
+                            while let Some(c) = self.peek() {
+                                if is_op_char(c) && c != ';' && c != '+' && c != '-' && c != '/' {
+                                    self.advance();
+                                } else {
+                                    break;
+                                }
+                            }
+                            Token::Op(self.input[start..self.pos].to_string())
                         } else {
                             Token::OpShiftL
                         }
@@ -716,7 +757,16 @@ impl<'a> Tokenizer<'a> {
                     Token::OpDblBang
                 } else if self.peek() == Some('~') {
                     self.advance();
-                    if self.peek() == Some('*') {
+                    // !~~ 和 !~~*（NOT LIKE / NOT ILIKE）以及 !~ / !~*
+                    if self.peek() == Some('~') {
+                        self.advance();
+                        if self.peek() == Some('*') {
+                            self.advance();
+                            Token::Op("!~~*".to_string())
+                        } else {
+                            Token::Op("!~~".to_string())
+                        }
+                    } else if self.peek() == Some('*') {
                         self.advance();
                         Token::Op("!~*".to_string())
                     } else {
@@ -775,7 +825,8 @@ impl<'a> Tokenizer<'a> {
                 // Distinguish JSONB/geometric operators from JDBC placeholder:
                 // ?| (supplementary-same-as-vertical), ?& (supplementary-all-keys),
                 // ?- (supplementary-horizontal), ?-| (supplementary-perpendicular),
-                // ?|| (supplementary-concatenation). All others stay JdbcParam.
+                // ?|| (supplementary-concatenation), ?# (geometry intersection).
+                // All others stay JdbcParam.
                 match self.peek() {
                     Some('|') => {
                         self.advance();
@@ -798,6 +849,10 @@ impl<'a> Tokenizer<'a> {
                         } else {
                             Token::Op("?-".to_string())
                         }
+                    }
+                    Some('#') => {
+                        self.advance();
+                        Token::Op("?#".to_string())
                     }
                     _ => Token::JdbcParam,
                 }
@@ -1529,6 +1584,23 @@ mod tests {
         let tokens = Tokenizer::new("INSERT INTO t (a, b) VALUES (?, ?)").tokenize().unwrap();
         let params: Vec<_> = tokens.iter().filter(|t| matches!(&t.token, Token::JdbcParam)).collect();
         assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn test_question_hash_geometry_operator() {
+        // ?# is the geometric "intersection" operator (lseg/box/line), not a JDBC placeholder
+        let tokens = Tokenizer::new("SELECT lseg '[(0,0),(1,1)]' ?# box '((0,0),(2,2))'").tokenize().unwrap();
+        let op = tokens.iter().find(|t| matches!(&t.token, Token::Op(op) if op == "?#"));
+        assert!(op.is_some(), "Expected ?# operator token, got {:?}", tokens);
+        assert!(!tokens.iter().any(|t| matches!(&t.token, Token::JdbcParam)));
+    }
+
+    #[test]
+    fn test_question_hash_still_works_with_jdbc_params() {
+        // standalone ? remains a JDBC placeholder even when ?# exists elsewhere
+        let tokens = Tokenizer::new("SELECT * FROM t WHERE a = ? AND b ?# c").tokenize().unwrap();
+        assert!(tokens.iter().any(|t| matches!(&t.token, Token::JdbcParam)));
+        assert!(tokens.iter().any(|t| matches!(&t.token, Token::Op(op) if op == "?#")));
     }
 
     #[test]

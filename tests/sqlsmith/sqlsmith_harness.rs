@@ -855,6 +855,9 @@ fn cmd_guard(args: &[String]) -> Result<usize, String> {
         "guard: total={total}, expected_fail={expected_fail}, expected_ok={expected_ok}, still_failing={still_failing}, fixed={fixed}, regressions={regressions}"
     );
 
+    // guard 更新了案例状态后，同步刷新 INDEX.md
+    write_index_md(&cases_dir)?;
+
     Ok(regressions)
 }
 
