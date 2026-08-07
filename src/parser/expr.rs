@@ -270,6 +270,28 @@ impl Parser {
     }
 
     fn try_postfix_op(&mut self, left: &mut Expr) -> Result<bool, ParserError> {
+        // AT TIME ZONE / AT LOCAL
+        if self.match_keyword(Keyword::AT) {
+            let saved_pos = self.pos;
+            self.advance();
+            if self.match_keyword(Keyword::TIME) {
+                self.advance();
+                self.expect_keyword(Keyword::ZONE)?;
+                let zone = self.parse_expr_with_precedence(51)?;
+                *left =
+                    Expr::AtTimeZone { expr: Box::new(std::mem::replace(left, Expr::Default)), zone: Box::new(zone) };
+                return Ok(true);
+            } else if self.match_keyword(Keyword::LOCAL) {
+                self.advance();
+                *left = Expr::AtTimeZone {
+                    expr: Box::new(std::mem::replace(left, Expr::Default)),
+                    zone: Box::new(Expr::Literal(Literal::String("localtime".to_string()))),
+                };
+                return Ok(true);
+            }
+            // Not AT TIME ZONE / AT LOCAL — rewind
+            self.pos = saved_pos;
+        }
         match self.peek() {
             Token::Keyword(Keyword::IS) => {
                 if let Some(next) = self.tokens.get(self.pos + 1) {

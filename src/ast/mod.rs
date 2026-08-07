@@ -1387,6 +1387,11 @@ pub enum Expr {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         builtin: Option<BuiltinFuncMeta>,
     },
+    /// `expr AT TIME ZONE zone` — timezone conversion expression
+    AtTimeZone {
+        expr: Box<Expr>,
+        zone: Box<Expr>,
+    },
     /// WHERE CURRENT OF cursor_name — for positioned UPDATE/DELETE
     CurrentOf {
         cursor_name: String,

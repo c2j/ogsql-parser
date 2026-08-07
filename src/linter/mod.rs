@@ -725,6 +725,10 @@ pub fn walk_expr(expr: &crate::ast::Expr, f: &mut dyn FnMut(&crate::ast::Expr) -
             }
         }
         Expr::XmlSerialize { expr, .. } => walk_expr(expr, f),
+        Expr::AtTimeZone { expr, zone } => {
+            walk_expr(expr, f);
+            walk_expr(zone, f);
+        }
     }
 }
 
@@ -927,6 +931,10 @@ fn collect_selects_from_expr<'a>(expr: &'a crate::ast::Expr, out: &mut Vec<(&'a 
             out.push((subquery, SourceLocation::default()));
             collect_nested_in_select(subquery, out);
             collect_selects_from_expr(expr, out);
+        }
+        Expr::AtTimeZone { expr, zone } => {
+            collect_selects_from_expr(expr, out);
+            collect_selects_from_expr(zone, out);
         }
         Expr::BinaryOp { left, right, .. } => {
             collect_selects_from_expr(left, out);

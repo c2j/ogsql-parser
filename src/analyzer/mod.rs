@@ -2025,6 +2025,10 @@ impl PlVariableValidator {
             Expr::Default => {}
             Expr::SysDate => {}
             Expr::CurrentOf { .. } => {}
+            Expr::AtTimeZone { expr, zone } => {
+                self.check_expr(expr, context);
+                self.check_expr(zone, context);
+            }
         }
     }
 

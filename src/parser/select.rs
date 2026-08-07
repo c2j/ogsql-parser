@@ -3,6 +3,7 @@ use crate::ast::{
     PivotValue, SelectIntoTable, SelectStatement, SelectTarget, SetOperation, TableRef, TableSampleClause,
     UnpivotClause, ValuesStatement, WithClause,
 };
+use crate::parser::is_allowed_as_alias;
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -73,7 +74,25 @@ impl Parser {
                 "intersect" => SetOperation::Intersect { all, right: Box::new(right) },
                 _ => SetOperation::Except { all, right: Box::new(right) },
             };
-            stmt.set_operation = Some(set_op);
+            // Walk the existing chain to find the rightmost leaf,
+            // then append the new set_op at the tail.
+            let mut cur: Option<&mut SelectStatement> = Some(&mut stmt);
+            while let Some(node) = cur.take() {
+                match &mut node.set_operation {
+                    Some(op) => {
+                        let right = match op {
+                            SetOperation::Union { right, .. }
+                            | SetOperation::Intersect { right, .. }
+                            | SetOperation::Except { right, .. } => right.as_mut(),
+                        };
+                        cur = Some(right);
+                    }
+                    slot @ None => {
+                        *slot = Some(set_op);
+                        break;
+                    }
+                }
+            }
         }
         Ok(stmt)
     }
@@ -382,7 +401,17 @@ impl Parser {
         let expr = self.parse_expr()?;
         let alias = if self.match_keyword(Keyword::AS) {
             self.advance();
-            Some(self.parse_ident()?)
+            if let Token::Keyword(kw) = self.peek() {
+                if is_allowed_as_alias(kw) {
+                    let name = kw.as_str().to_string();
+                    self.advance();
+                    Some(crate::ast::Ident::new(name))
+                } else {
+                    Some(self.parse_ident()?)
+                }
+            } else {
+                Some(self.parse_ident()?)
+            }
         } else {
             self.parse_optional_column_alias()?
         };
@@ -437,7 +466,7 @@ impl Parser {
         }
     }
 
-    fn try_consume_table_modifiers(&mut self, table_ref: &mut TableRef) {
+    pub(crate) fn try_consume_table_modifiers(&mut self, table_ref: &mut TableRef) {
         if self.match_keyword(Keyword::PARTITION) {
             if let Ok(Some(p)) = self.try_parse_partition_ref(Keyword::PARTITION) {
                 if let TableRef::Table { partition: ref mut pp, .. } = table_ref {

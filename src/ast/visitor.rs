@@ -841,6 +841,14 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
                 return VisitorResult::Stop;
             }
         }
+        Expr::AtTimeZone { expr, zone } => {
+            if walk_expr(visitor, expr) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+            if walk_expr(visitor, zone) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+        }
         Expr::FunctionCall {
             args,
             over,

@@ -1269,6 +1269,9 @@ impl SqlFormatter {
                     format!("{} {}", op_upper, self.format_expr(expr))
                 }
             }
+            Expr::AtTimeZone { expr, zone } => {
+                format!("{} AT TIME ZONE {}", self.format_expr(expr), self.format_expr(zone))
+            }
             Expr::FunctionCall {
                 name,
                 args,

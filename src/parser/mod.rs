@@ -966,6 +966,13 @@ impl Parser {
     fn parse_optional_alias(&mut self) -> Result<Option<crate::ast::Ident>, ParserError> {
         if self.match_keyword(Keyword::AS) {
             self.advance();
+            if let Token::Keyword(kw) = self.peek() {
+                if is_allowed_as_alias(kw) {
+                    let name = kw.as_str().to_string();
+                    self.advance();
+                    return Ok(Some(crate::ast::Ident::new(name)));
+                }
+            }
             Ok(Some(self.parse_ident()?))
         } else {
             match self.peek() {
@@ -992,6 +999,13 @@ impl Parser {
     fn parse_optional_column_alias(&mut self) -> Result<Option<crate::ast::Ident>, ParserError> {
         if self.match_keyword(Keyword::AS) {
             self.advance();
+            if let Token::Keyword(kw) = self.peek() {
+                if is_allowed_as_alias(kw) {
+                    let name = kw.as_str().to_string();
+                    self.advance();
+                    return Ok(Some(crate::ast::Ident::new(name)));
+                }
+            }
             Ok(Some(self.parse_ident()?))
         } else {
             match self.peek() {
@@ -5369,6 +5383,24 @@ impl Iterator for StatementIter {
             }
         }
     }
+}
+
+/// Reserved keywords that openGauss permits as identifiers after explicit `AS`.
+/// e.g., `SELECT 1 AS current_user` — these are function-style reserved words.
+pub(crate) fn is_allowed_as_alias(kw: &crate::token::keyword::Keyword) -> bool {
+    use crate::token::keyword::Keyword;
+    matches!(
+        kw,
+        Keyword::CURRENT_USER
+            | Keyword::SESSION_USER
+            | Keyword::CURRENT_ROLE
+            | Keyword::CURRENT_DATE
+            | Keyword::CURRENT_TIME
+            | Keyword::CURRENT_TIMESTAMP
+            | Keyword::USER
+            | Keyword::CAST
+            | Keyword::SYSDATE
+    )
 }
 
 impl IntoIterator for Parser {

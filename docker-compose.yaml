@@ -1,0 +1,46 @@
+# Docker Compose for local openGauss instance — parser verification & testing.
+#
+# 用法 / Usage:
+#   docker compose up -d                    # 启动并等待就绪
+#   docker compose logs -f opengauss        # 跟踪启动日志
+#   docker compose down                     # 停止并清理
+#
+# 连接信息 / Connection:
+#   Host: localhost (或 127.0.0.1)
+#   Port: 5432
+#   Database: postgres
+#   User: gaussdb
+#   Password: <GS_PASSWORD 值，见下方>
+#
+# 用于 GaussDB MCP 连接 — 在 ogsql-mcp 配置中填入上述连接信息即可。
+
+services:
+  opengauss:
+    image: opengauss/opengauss:latest
+    container_name: ogsql-opengauss
+    privileged: true                  # openGauss 镜像要求 privileged 模式
+    environment:
+      GS_PASSWORD: "Ogsql@2024"       # 必填 — 同时设置 omm 和 gaussdb 用户密码
+      GS_NODENAME: gaussdb            # 可选 — 数据库节点名（默认 gaussdb）
+      GS_PORT: 5432                   # 可选 — 数据库端口（默认 5432）
+    ports:
+      - "5432:5432"                   # 宿主机:容器
+    volumes:
+      # 持久化数据目录，避免重启丢库
+      - opengauss-data:/var/lib/opengauss/data
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/local/opengauss/bin/gsql -d postgres -U gaussdb -W Ogsql@2024 -c 'SELECT 1'"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    restart: "no"
+
+volumes:
+  opengauss-data:
+    driver: local
