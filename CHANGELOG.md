@@ -2,7 +2,7 @@
 
 All notable changes to ogsql-parser will be documented in this file.
 
-## [Unreleased]
+## [0.9.0]
 
 ### Added
 - `serve-stdio` subcommand: long-lived NDJSON line protocol over stdin/stdout for

@@ -13,7 +13,7 @@
 <dependency>
   <groupId>io.github.c2j</groupId>
   <artifactId>ogsql-parser-java</artifactId>
-  <version>0.8.33-SNAPSHOT</version>
+  <version>0.9.0</version>
 </dependency>
 ```
 
