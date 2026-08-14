@@ -54,8 +54,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.70
-      # NOTE: --all-features includes `serve` which pulls utoipa-swagger-ui → zip 3.x
-      # zip 3.x's dep:flate2 syntax is incompatible with Cargo's v2 resolver on Rust 1.70.
-      # This is a known pre-existing failure (also fails on main). The only fix is an
-      # upstream utoipa-swagger-ui release that doesn't depend on zip's dep:flate2 feature.
-      - run: cargo check --all-features
+      # MSRV verification covers the library core (default features), not --all-features:
+      # - `serve` pulls utoipa-swagger-ui → zip 3.0.0, whose `dep:`-syntax features
+      #   cannot be resolved by Cargo 1.70 at all (upstream; also fails on main)
+      # - feature-gated binaries pull deps with higher MSRVs (clap 4.x → 1.74,
+      #   axum 0.8 → 1.75), so --all-features could never build at Rust 1.70
+      - run: cargo test --lib
