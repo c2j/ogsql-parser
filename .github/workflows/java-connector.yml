@@ -1,0 +1,190 @@
+# Java connector: build platform binaries, run connector tests, assemble the jar,
+# and (manually) publish it to GitHub Packages.
+
+name: Java Connector
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "java-connector/**"
+      - "Cargo.toml"
+      - ".github/workflows/java-connector.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "java-connector/**"
+      - "Cargo.toml"
+      - ".github/workflows/java-connector.yml"
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy jar to GitHub Packages"
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── 1. Build `ogsql serve-stdio` (--features cli only) for every supported platform ──
+  platform-binaries:
+    name: Build ogsql (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-amd64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            zigbuild: "true"
+            resource: ogsql_linux_amd64
+            suffix: ""
+          - name: linux-arm64
+            os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+            zigbuild: "true"
+            resource: ogsql_linux_arm64
+            suffix: ""
+          - name: osx-amd64
+            os: macos-13
+            target: x86_64-apple-darwin
+            zigbuild: "false"
+            resource: ogsql_osx_amd64
+            suffix: ""
+          - name: osx-arm64
+            os: macos-14
+            target: aarch64-apple-darwin
+            zigbuild: "false"
+            resource: ogsql_osx_arm64
+            suffix: ""
+          - name: windows-amd64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            zigbuild: "false"
+            resource: ogsql_windows_amd64.exe
+            suffix: ".exe"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install Zig (linux cross)
+        if: matrix.zigbuild == 'true'
+        uses: mlugg/setup-zig@v1
+        with:
+          version: "0.13.0"
+      - name: Install cargo-zigbuild (linux cross)
+        if: matrix.zigbuild == 'true'
+        run: cargo install cargo-zigbuild
+      - name: Build
+        shell: bash
+        run: |
+          if [ "${{ matrix.zigbuild }}" = "true" ]; then
+            cargo zigbuild --release --features cli --target ${{ matrix.target }}
+          else
+            cargo build --release --features cli --target ${{ matrix.target }}
+          fi
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.resource }}
+          path: target/${{ matrix.target }}/release/ogsql${{ matrix.suffix }}
+
+  # ── 2. Connector test suite against a freshly built local binary ──
+  java-test:
+    name: Java connector tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build local binary
+        run: cargo build --features cli
+      - name: Run connector tests
+        run: mvn -B -f java-connector/pom.xml test
+
+  # ── 3. Assemble the DuckDB-style fat jar (binaries inside resources) ──
+  java-package:
+    name: Package jar (all platforms)
+    runs-on: ubuntu-latest
+    needs: platform-binaries
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - uses: actions/download-artifact@v4
+        with:
+          path: native-binaries
+          merge-multiple: true
+      - name: Copy platform binaries into resources
+        run: |
+          mkdir -p java-connector/src/main/resources
+          for f in ogsql_linux_amd64 ogsql_linux_arm64 ogsql_osx_amd64 ogsql_osx_arm64 ogsql_windows_amd64.exe; do
+            if [ -f "native-binaries/$f" ]; then
+              cp "native-binaries/$f" java-connector/src/main/resources/
+            else
+              echo "::warning::missing platform binary $f"
+            fi
+          done
+          chmod +x java-connector/src/main/resources/ogsql_* 2>/dev/null || true
+          ls -la java-connector/src/main/resources/
+      - name: Package jar
+        run: mvn -B -f java-connector/pom.xml -DskipTests package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ogsql-parser-java-jar
+          path: java-connector/target/ogsql-parser-java-*.jar
+
+  # ── 4. Manual publish to GitHub Packages (workflow_dispatch → deploy=true) ──
+  java-deploy:
+    name: Deploy jar to GitHub Packages
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    needs: platform-binaries
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/download-artifact@v4
+        with:
+          path: native-binaries
+          merge-multiple: true
+      - name: Copy platform binaries into resources
+        run: |
+          mkdir -p java-connector/src/main/resources
+          for f in ogsql_linux_amd64 ogsql_linux_arm64 ogsql_osx_amd64 ogsql_osx_arm64 ogsql_windows_amd64.exe; do
+            [ -f "native-binaries/$f" ] && cp "native-binaries/$f" java-connector/src/main/resources/
+          done
+          chmod +x java-connector/src/main/resources/ogsql_* 2>/dev/null || true
+      - name: Configure Maven for GitHub Packages
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${GITHUB_ACTOR}</username>
+                <password>${GITHUB_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Deploy
+        run: mvn -B -f java-connector/pom.xml deploy -DskipTests

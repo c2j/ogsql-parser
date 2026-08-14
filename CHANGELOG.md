@@ -2,6 +2,22 @@
 
 All notable changes to ogsql-parser will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- `serve-stdio` subcommand: long-lived NDJSON line protocol over stdin/stdout for
+  embedded clients (Java/Python/Node). Ops: `hello`, `ping`, `shutdown`, `parse`,
+  `format`, `tokenize`, `validate`, `json2sql`. Per-request panic isolation,
+  16 MiB line cap, and a paren-nesting guard (32) that rejects input that would
+  stack-overflow the recursive-descent parser. Protocol spec: `docs/stdio-protocol.md`.
+- Integration tests for the stdio protocol: `tests/serve_stdio.rs` (18 tests).
+- `java-connector/` Maven module (`io.github.c2j:ogsql-parser-java`): DuckDB-style
+  platform-aware binary loading (`-Dogsql.lib.path` override → bundled jar resource),
+  long-lived child-process supervisor with auto-restart/backoff and JVM shutdown hook,
+  synchronous facade (`Ogsql.newInstance()` → parse/format/validate/tokenize/json2sql),
+  17 JUnit tests (incl. crash recovery, TOO_DEEP, 2,000-iteration soak), and a CI workflow
+  building 5 platform binaries + assembling the fat jar + GitHub Packages deploy.
+
 ## [0.8.33]
 
 ### Changed
