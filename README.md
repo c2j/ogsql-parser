@@ -128,6 +128,7 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 |-----------|--------|---------|
 | iBatis/MyBatis XML parsing / iBatis XML 解析 | ✅ Complete | Dynamic SQL AST, variant expansion, parameter type inference from Java |
 | Java source SQL extraction / Java源文件SQL提取 | ✅ Complete | String concatenation, switch-expression, cross-method PreparedStatement backfill |
+| Java connector / Java 连接器 | ✅ Complete | `java-connector/` Maven module: DuckDB-style jar packaging + stdio NDJSON channel (`ogsql serve-stdio`), JVM-safe process isolation with auto-restart. See [docs/java-developer-guide.md](docs/java-developer-guide.md) |
 | MCP server / MCP服务器 | ✅ Complete | Model Context Protocol server for Claude Desktop, Cursor, etc. |
 | HTTP API server / HTTP API 服务 | ✅ Complete | RESTful API for parse, format, validate, tokenize, json2sql |
 | Interactive TUI / 交互式终端 | ✅ Complete | Terminal UI playground for live SQL parsing |
@@ -255,6 +256,7 @@ Commands:
   parse-xml   Parse iBatis/MyBatis XML mapper → extracted SQL [requires: ibatis feature]
   parse-java  Extract and parse SQL from Java source files [requires: java feature]
   serve       Start an HTTP API server for parsing SQL [requires: serve feature]
+  serve-stdio Start a stdio NDJSON line-protocol server for embedded clients (Java/Python/Node); no extra features required / 启动 stdio NDJSON 协议服务（供嵌入客户端长连接使用）
   playground  Launch an interactive terminal UI playground [requires: tui feature]
   mcp         Start the MCP (Model Context Protocol) server [requires: mcp feature]
 

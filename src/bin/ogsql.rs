@@ -196,6 +196,12 @@ enum Commands {
         #[arg(long, default_value = "127.0.0.1")]
         host: String,
     },
+    /// Start a stdio line-delimited JSON protocol server. Reads one JSON request per
+    /// line on stdin and writes one JSON response per line on stdout — a long-lived
+    /// connection for embedded clients (Java/Python/Node). No extra features required.
+    /// 启动 stdio 长连接 NDJSON 协议服务（每行一个 JSON 请求/响应，供嵌入客户端使用）
+    #[command(name = "serve-stdio")]
+    ServeStdio,
     #[cfg(feature = "tui")]
     /// Launch an interactive terminal UI playground / 启动交互式终端演练场
     Playground,
@@ -484,20 +490,60 @@ fn cmd_format(
         die!("Error: format command accepts at most one --file");
     }
     let sql = read_input(cli.file.first().map(|s| s.as_str()));
-    let mut tokenizer = Tokenizer::new(&sql).preserve_comments(true);
-    if cli.mybatis {
+    let formatted = format_sql_to_string(
+        &sql,
+        cli.mybatis,
+        indent,
+        &keyword_case,
+        &comma,
+        line_width,
+        uppercase,
+        no_select_newline,
+        no_logical_newline,
+        no_semicolon_newline,
+    )
+    .unwrap_or_else(|e| die!("{}", e));
+
+    if cli.json {
+        let out = serde_json::json!({
+            "formatted": formatted,
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        println!("{}", formatted);
+        if !formatted.ends_with('\n') {
+            println!();
+        }
+    }
+}
+
+/// Shared format logic for the CLI and the stdio protocol server.
+fn format_sql_to_string(
+    sql: &str,
+    mybatis: bool,
+    indent: usize,
+    keyword_case: &str,
+    comma: &str,
+    line_width: usize,
+    uppercase: bool,
+    no_select_newline: bool,
+    no_logical_newline: bool,
+    no_semicolon_newline: bool,
+) -> Result<String, String> {
+    let mut tokenizer = Tokenizer::new(sql).preserve_comments(true);
+    if mybatis {
         tokenizer = tokenizer.mybatis_params(true);
     }
     let tokens = match tokenizer.tokenize() {
         Ok(t) => t,
-        Err(e) => die!("Tokenization error: {}", e),
+        Err(e) => return Err(format!("Tokenization error: {}", e)),
     };
-    let kw_case = match keyword_case.as_str() {
+    let kw_case = match keyword_case {
         "upper" => KeywordCase::Upper,
         "lower" => KeywordCase::Lower,
         _ => KeywordCase::Preserve,
     };
-    let comma_style = match comma.as_str() {
+    let comma_style = match comma {
         "leading" => CommaStyle::Leading,
         _ => CommaStyle::Trailing,
     };
@@ -506,7 +552,7 @@ fn cmd_format(
     // when parsing fails (syntax errors, unsupported constructs).
     // AST path tokenizes without comments (AST formatter drops comments anyway);
     // token fallback path uses the comment-preserving tokens from above.
-    let ast_tokens = Tokenizer::new(&sql).tokenize();
+    let ast_tokens = Tokenizer::new(sql).tokenize();
     let ast_ok = if let Ok(ref at) = ast_tokens {
         let stmts = Parser::new(at.clone()).parse();
         !stmts.iter().any(|s| matches!(s, Statement::Empty))
@@ -530,20 +576,9 @@ fn cmd_format(
             logical_operator_newline: !no_logical_newline,
             semicolon_newline: !no_semicolon_newline,
         };
-        token_formatter::TokenFormatter::with_config(&sql, tokens, config).format()
+        token_formatter::TokenFormatter::with_config(sql, tokens, config).format()
     };
-
-    if cli.json {
-        let out = serde_json::json!({
-            "formatted": formatted,
-        });
-        println!("{}", serde_json::to_string_pretty(&out).unwrap());
-    } else {
-        println!("{}", formatted);
-        if !formatted.ends_with('\n') {
-            println!();
-        }
-    }
+    Ok(formatted)
 }
 
 fn has_routine_return_cursors(stmt: &ogsql_parser::Statement) -> bool {
@@ -3722,16 +3757,26 @@ fn cmd_json2sql(cli: &Cli) {
         die!("Error: json2sql command accepts at most one --file");
     }
     let input = read_input(cli.file.first().map(|s| s.as_str()));
+    let formatted = json2sql_to_strings(&input).unwrap_or_else(|e| die!("{}", e));
 
-    let json_value: serde_json::Value = match serde_json::from_str(&input) {
-        Ok(v) => v,
-        Err(e) => die!("Invalid JSON: {}", e),
-    };
+    if cli.json {
+        let out = serde_json::json!({
+            "statements": formatted,
+            "count": formatted.len(),
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        println!("{}", formatted.join(";\n"));
+        println!(";");
+    }
+}
 
-    let arr = match json_value.get("statements") {
-        Some(v) => v,
-        None => die!("Expected JSON object with \"statements\" array"),
-    };
+/// Shared JSON → SQL logic for the CLI and the stdio protocol server.
+fn json2sql_to_strings(input: &str) -> Result<Vec<String>, String> {
+    let json_value: serde_json::Value = serde_json::from_str(input).map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    let arr =
+        json_value.get("statements").ok_or_else(|| "Expected JSON object with \"statements\" array".to_string())?;
 
     let statements: Vec<Statement> = if let serde_json::Value::Array(items) = arr {
         items
@@ -3745,26 +3790,15 @@ fn cmd_json2sql(cli: &Cli) {
             })
             .collect()
     } else {
-        die!("\"statements\" must be an array");
+        return Err("\"statements\" must be an array".to_string());
     };
 
     if statements.is_empty() {
-        die!("No valid statements found in JSON");
+        return Err("No valid statements found in JSON".to_string());
     }
 
     let formatter = SqlFormatter::new();
-    let formatted: Vec<String> = statements.iter().map(|s| formatter.format_statement(s)).collect();
-
-    if cli.json {
-        let out = serde_json::json!({
-            "statements": formatted,
-            "count": formatted.len(),
-        });
-        println!("{}", serde_json::to_string_pretty(&out).unwrap());
-    } else {
-        println!("{}", formatted.join(";\n"));
-        println!(";");
-    }
+    Ok(statements.iter().map(|s| formatter.format_statement(s)).collect())
 }
 
 fn is_warning(e: &ogsql_parser::ParserError) -> bool {
@@ -4677,6 +4711,8 @@ fn find_error_sub_item(stmt: &Statement, error_line: usize) -> (Option<String>, 
 
 #[cfg(feature = "serve")]
 mod serve;
+
+mod serve_stdio;
 
 #[cfg(feature = "tui")]
 fn cmd_playground() {
@@ -7374,6 +7410,7 @@ fn main() {
                 cmd_validate(&cli, csv, strict);
             }
         }
+        Commands::ServeStdio => serve_stdio::run(),
         #[cfg(feature = "serve")]
         Commands::Serve { port, host } => {
             let addr = format!("{}:{}", host, port);
