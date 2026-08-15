@@ -31,7 +31,11 @@ axum = { version = "0.8", features = ["multipart"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"], optional = true }
 tower-http = { version = "0.6", features = ["cors", "trace", "request-id"], optional = true }
 utoipa = { version = "5", optional = true }
-utoipa-swagger-ui = { version = "9", features = ["axum"], optional = true }
+# Pinned to 9.0.0: 9.0.2 bumped `zip` to ^3.0.0 whose `dep:`-syntax features are
+# unresolvable by Cargo 1.70 (the declared MSRV), and 9.0.1's zip ^2.6 has no
+# non-yanked release (2.6.0/2.6.1 are yanked). 9.0.0's zip ^2 resolves to 2.4.2
+# and is API-compatible with utoipa 5 / axum 0.8.
+utoipa-swagger-ui = { version = "=9.0.0", features = ["axum"], optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"], optional = true }
 ratatui = { version = "0.29", optional = true }

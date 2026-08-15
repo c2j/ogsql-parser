@@ -55,8 +55,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.70
       # MSRV verification covers the library core (default features), not --all-features:
-      # - `serve` pulls utoipa-swagger-ui → zip 3.0.0, whose `dep:`-syntax features
-      #   cannot be resolved by Cargo 1.70 at all (upstream; also fails on main)
+      # - utoipa-swagger-ui is pinned to 9.0.0 (zip ^2 → 2.4.2) because 9.0.1/9.0.2
+      #   depend on zip 3.0.0 / ^2.6 which Cargo 1.70 cannot resolve (see Cargo.toml)
       # - feature-gated binaries pull deps with higher MSRVs (clap 4.x → 1.74,
       #   axum 0.8 → 1.75), so --all-features could never build at Rust 1.70
       - run: cargo test --lib
