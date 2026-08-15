@@ -52,3 +52,4 @@ docs/reports/ogsql_bench_artifact.tar.gz
 tests/sqlsmith/fixtures/
 tests/sqlsmith/reports/
 .m2-repo/
+.cargo-home/

@@ -73,7 +73,7 @@ OGSQL Parser 是一个使用 Rust 编写的 SQL 解析器，专为 openGauss / G
 
 ### 2.1 环境要求
 
-- **Rust 1.70+** 及 Cargo（用于从源码编译）
+- **Rust 1.71+** 及 Cargo（用于从源码编译）
 
 ### 2.2 获取二进制
 

@@ -49,14 +49,16 @@ jobs:
       - run: cargo audit
 
   msrv:
-    name: MSRV (Rust 1.70)
+    name: MSRV (Rust 1.71)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.70
+      - uses: dtolnay/rust-toolchain@1.71
       # MSRV verification covers the library core (default features), not --all-features:
       # - utoipa-swagger-ui is pinned to 9.0.0 (zip ^2 → 2.4.2) because 9.0.1/9.0.2
-      #   depend on zip 3.0.0 / ^2.6 which Cargo 1.70 cannot resolve (see Cargo.toml)
+      #   depend on zip 3.0.0 / ^2.6 which older Cargo cannot resolve (see Cargo.toml)
+      # - the core proc-macro stack (syn/quote/serde_json/ryu/unicode-ident) requires
+      #   Rust 1.71 (bumped upstream), which is why MSRV is 1.71
       # - feature-gated binaries pull deps with higher MSRVs (clap 4.x → 1.74,
-      #   axum 0.8 → 1.75), so --all-features could never build at Rust 1.70
+      #   axum 0.8 → 1.75), so --all-features could never build at the MSRV
       - run: cargo test --lib

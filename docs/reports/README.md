@@ -208,7 +208,7 @@ src/
 
 ```bash
 # 必需
-rustc >= 1.70（实测 1.96）
+rustc >= 1.71（实测 1.96）
 python3 >= 3.10
 gcc, make
 

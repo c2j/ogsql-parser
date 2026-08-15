@@ -18,6 +18,14 @@ All notable changes to ogsql-parser will be documented in this file.
   17 JUnit tests (incl. crash recovery, TOO_DEEP, 2,000-iteration soak), and a CI workflow
   building 5 platform binaries + assembling the fat jar + GitHub Packages deploy.
 
+### Changed
+- MSRV raised from 1.70 to 1.71: the core proc-macro stack (syn/quote/serde_json/
+  ryu/unicode-ident) moved to Rust 1.71 upstream, so Rust 1.70 could no longer
+  build the library.
+- `utoipa-swagger-ui` pinned to 9.0.0: 9.0.2 depends on zip ^3.0.0 (unresolvable
+  by older Cargo), 9.0.1 depends on zip ^2.6 (2.6.0/2.6.1 are yanked); 9.0.0's
+  zip ^2 → 2.4.2 restores resolution across supported toolchains.
+
 ## [0.8.33]
 
 ### Changed

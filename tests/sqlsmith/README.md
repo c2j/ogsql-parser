@@ -78,7 +78,7 @@ docker compose down
 | 组件 | 版本 | 安装 |
 |---|---|---|
 | Docker + Docker Compose | v2+ | [docs.docker.com](https://docs.docker.com) |
-| Rust | 1.70+ | 与项目主仓库一致 |
+| Rust | 1.71+ | 与项目主仓库一致 |
 
 > SQLsmith 通过 `Dockerfile.sqlsmith` 容器化运行，宿主机**不需要**单独安装 sqlsmith / psql / pg_isready。docker compose 会自动构建并运行。
 

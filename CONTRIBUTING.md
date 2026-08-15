@@ -118,7 +118,7 @@ ogsql-parser/
 
 ### 2.1 环境要求
 
-- **Rust 1.70+** 及 Cargo
+- **Rust 1.71+** 及 Cargo
 - Git（克隆仓库及 submodule）
 - （可选）Rust nightly 工具链，用于 Windows 7 目标构建
 

@@ -206,7 +206,7 @@ ogsql-parser/
 
 ### Prerequisites / 环境要求
 
-- Rust 1.70+ with Cargo
+- Rust 1.71+ with Cargo
 
 ### Build / 编译
 

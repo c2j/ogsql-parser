@@ -511,6 +511,6 @@ Error sources:
 | `rmcp` (MCP framework) | 1.5 |
 | `schemars` (JSON schema) | 1 |
 | `tokio` (async runtime) | 1 |
-| Minimum Rust | 1.70 |
+| Minimum Rust | 1.71 |
 
 The MCP binary requires exactly the `mcp` feature flag. Attempting to run `ogsl-mcp` without it will fail at build time (`required-features = ["mcp"]`).
