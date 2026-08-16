@@ -91,22 +91,41 @@ try (Ogsql ogsql = Ogsql.newInstance()) {
 
 | 渠道 | 说明 |
 |---|---|
-| GitHub Packages | 当前发布渠道：`maven.pkg.github.com/c2j/ogsql-parser`（CI 手动触发 `workflow_dispatch` 的 deploy 选项） |
-| Maven Central | 后续里程碑（切换 `distributionManagement` 即可） |
+| **Maven Central** | 发布渠道：`central.sonatype.com`（Central Portal）。`mvn deploy` 经 `central-publishing-maven-plugin` 上传签名 bundle（jar + sources + javadoc），校验通过后自动发布到 Maven Central，全球可拉取 |
 
-消费 GitHub Packages 依赖需在 `~/.m2/settings.xml` 配置凭据：
+消费方式（发布后）：
 
 ```xml
-<settings>
-  <servers>
-    <server>
-      <id>github</id>
-      <username>你的GitHub用户名</username>
-      <password>你的GitHub Token（需 packages:read 权限）</password>
-    </server>
-  </servers>
-</settings>
+<dependency>
+  <groupId>io.github.c2j</groupId>
+  <artifactId>ogsql-parser-java</artifactId>
+  <version>0.9.0</version>
+</dependency>
 ```
+
+### 3.1 首次发布的一次性准备工作（手动）
+
+1. **注册账号**：访问 [central.sonatype.com](https://central.sonatype.com)，用 GitHub 账号登录。
+2. **验证命名空间** `io.github.c2j`：Portal → Namespaces → 按提示验证归属（`io.github.*` 命名空间可关联 GitHub 账号验证，或用 DNS TXT 记录：在 `c2j.github.io` 下添加指定 TXT 记录）。
+3. **生成 PGP 密钥**（用于签名，任选其一）：
+   ```bash
+   gpg --full-generate-key        # RSA 4096 或 Ed25519，邮箱用 chenjj.yz@gmail.com
+   gpg --keyserver keyserver.ubuntu.com --send-keys <KEY_ID>   # 发布公钥
+   ```
+4. **生成 User Token**：Portal → User Tokens → Generate（得到 username/password 一对凭据）。
+5. **在仓库配置 Secrets**（Settings → Secrets and variables → Actions）：
+   | Secret | 值 |
+   |---|---|
+   | `SONATYPE_USERNAME` / `SONATYPE_PASSWORD` | User Token 的 username/password |
+   | `GPG_PRIVATE_KEY` | 私钥（`gpg --armor --export-secret-keys <KEY_ID> | base64`） |
+   | `GPG_PASSPHRASE` | 私钥口令 |
+   | `GPG_KEY_ID` | 公钥指纹（`gpg --list-secret-keys` 的输出） |
+
+### 3.2 发布流程（CI 自动）
+
+手动触发 `Java Connector` 工作流的 `workflow_dispatch` 并勾选 `deploy`（自动先构建 5 平台二进制打进 jar，再签名上传 Central Portal；`autoPublish=true`，校验通过即自动发布，通常 15–60 分钟生效）。
+
+> 发布要求（pom 已满足）：非 SNAPSHOT 版本、POM 含 licenses/developers/scm、sources + javadoc jar、所有产物 GPG 签名、公钥已发布到 keyserver。
 
 ## 4. 平台与二进制（DuckDB 式加载）
 

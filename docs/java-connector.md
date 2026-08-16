@@ -74,5 +74,5 @@ mvn -f java-connector/pom.xml test -Dogsql.lib.path=/path/to/ogsql
 
 ## 发布
 
-GitHub Packages（`distributionManagement` 已配置为 `maven.pkg.github.com/c2j/ogsql-parser`）；
+Maven Central（Central Portal，`central.sonatype.com`，详见 java-developer-guide.md §3）；
 Maven Central 作为后续里程碑。

@@ -11,7 +11,7 @@
 | M1 serve-stdio 子命令 + 协议文档 + Rust 测试（18 tests） | ✅ 完成（fmt / clippy --all-features / cargo test --all-features 全绿） |
 | M2 Java 骨架：平台命名/解压/spawn/hello/五 op 门面 + JUnit（16 tests） | ✅ 完成（含崩溃自愈、TOO_DEEP、并发串行测试） |
 | M3 健壮性打磨（核心项已在 M2 内置：EOF 重启、超时、shutdown hook） | ✅ 完成（stderr 转发 java.util.logging、重启上限语义、2,000 次压力测试 ≈0.37ms/次） |
-| M4 CI 平台矩阵 + Maven 打包 + 冒烟 | ✅ 完成（.github/workflows/java-connector.yml：5 平台二进制 + 连接器测试 + 胖 jar 组装 + GitHub Packages 手动发布；YAML 已验证，待 GH 实跑） |
+| M4 CI 平台矩阵 + Maven 打包 + 冒烟 | ✅ 完成（.github/workflows/java-connector.yml：5 平台二进制 + 连接器测试 + 胖 jar 组装；deploy job 已切换为 Maven Central，YAML 已验证，待 GH 实跑） |
 | M5（可选）win7 artifacts、parse_xml/parse_java op、批量 op、基准 | 🔲 按需（Win7 构建路径已在 release.yml 存在，接入 classifier 即可） |
 
 
@@ -122,7 +122,7 @@ ogsql.close();
 - **Rust CI（GH Actions 矩阵）**：`cargo build --release --features cli`，产出 linux amd64/arm64、osx amd64/arm64、windows amd64 二进制 → 上传 release artifact。
 - **win7（可选，后续）**：nightly + `-Zbuild-std` + `x86_64-win7-windows-msvc` / `i686-win7-windows-msvc`（AGENTS.md 现成流程），以 classifier 单独发布。
 - **Maven 打包**：Maven 构建从 release artifact / 本地目录把二进制拷入 `src/main/resources`（或 resource 过滤注入版本）；`mvn package` 出胖 jar。
-- **发布（最终里程碑）**：Maven Central（GPG + ossrh）或 GitHub Packages；CI 触发版本对齐（Cargo.toml 版本 = pom 版本）。
+- **发布**：Maven Central（Central Portal：central-publishing-maven-plugin + User Token + GPG 签名；pom 已含 licenses/developers/scm + sources/javadoc/gpg/central 插件）。CI 触发版本对齐（Cargo.toml 版本 = pom 版本）。
 
 ## 5. 测试与验收
 
@@ -147,7 +147,7 @@ ogsql.close();
 2. 平台范围：首批 linux amd64/arm64 + osx amd64/arm64 + windows amd64（推荐）；win7 是否首批（涉及 nightly build-std CI）。
 3. JSON 依赖：Jackson databind（推荐） vs 零依赖手写 JSON。
 4. 并发模型：id 流水线 + 同步门面（推荐） vs 纯串行。
-5. 发布渠道：Maven Central（推荐，最终里程碑） vs GitHub Packages。
+5. 发布渠道：**Maven Central（Central Portal）**（已定并实施，pom/CI 就绪）。
 
 ## 8. 已确认决策（评审结论）
 
@@ -157,7 +157,7 @@ ogsql.close();
 | 平台范围（首批） | linux amd64/arm64 + osx amd64/arm64 + windows amd64；Win7 以 classifier 扩展点后续追加 |
 | JSON 依赖 | Jackson databind |
 | 并发模型 | **纯串行**：Java 侧每次调用独占一次往返（单锁），协议仍保留 id 字段（序列号，为未来流水线预留），实现最简单 |
-| 发布渠道 | **GitHub Packages 先行**，Maven Central 作为后续里程碑 |
+| 发布渠道 | **Maven Central（Central Portal）**，`mvn deploy` 直接发布；pom 与 CI 已就绪，待一次性账号/密钥准备后首发 |
 
 > 协议层设计不受并发模型影响：NDJSON + id 已按流水线友好方式定义；Java 侧仅需一把写锁 + 顺序读响应即可。
 
