@@ -1385,3 +1385,80 @@ fn test_inline_ddl_in_package_body_procedure() {
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
 }
+
+// ── Issue #320 regression guards: pre-existing behavior must not change ──
+
+#[test]
+fn test_issue320_guard_unreserved_ddl_keyword_as_assignment_target() {
+    // lock / truncate / comment / drop are Unreserved — legal variable names.
+    // The DDL gate must backtrack cleanly and leave these as assignments.
+    for body in ["lock := 1;", "truncate := 2;", "comment := 'x';", "drop := 3;", "vacuum := 4;", "alter := 5;"] {
+        let pl = parse_single_pl_stmt_in_proc(body);
+        assert!(matches!(&pl, PlStatement::Assignment { .. }), "{:?}: expected Assignment, got {:?}", body, pl);
+    }
+}
+
+#[test]
+fn test_issue320_guard_ddl_keyword_named_procedure_call() {
+    // `lock(1);` — unreserved keyword as procedure name; DDL parse fails on '(',
+    // must backtrack to the procedure-call path.
+    let pl = parse_single_pl_stmt_in_proc("lock(1);");
+    assert!(!matches!(&pl, PlStatement::SqlStatement { .. }), "lock(1) must not be parsed as DDL, got {:?}", pl);
+}
+
+#[test]
+fn test_issue320_guard_malformed_ddl_falls_back_to_raw_sql_without_errors() {
+    // Malformed DDL keeps the pre-#320 behavior: raw PlStatement::Sql, no
+    // parse errors leaked from the failed structured attempt.
+    let sql = "CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  TRUNCATE 123 WHAT;\nEND;";
+    let tokens = crate::Tokenizer::new(sql).tokenize().expect("tokenize");
+    let mut parser = crate::parser::Parser::new(tokens);
+    let stmts = parser.parse();
+    // 以现状(修复前 git stash 验证)为基准:该输入解析成功且体内为 Sql 裸字符串
+    let proc = match &stmts[0] {
+        Statement::CreateProcedure(p) => p,
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    };
+    let block = proc.block.as_ref().expect("block");
+    assert!(
+        matches!(&block.body[0], PlStatement::Sql(s) if s.to_uppercase().contains("TRUNCATE")),
+        "expected raw Sql fallback, got {:?}",
+        block.body[0]
+    );
+}
+
+#[test]
+fn test_issue320_guard_execute_immediate_ddl_unchanged() {
+    // EXECUTE IMMEDIATE literal DDL must still produce parsed_query.
+    let pl = parse_single_pl_stmt_in_proc("EXECUTE IMMEDIATE 'TRUNCATE TABLE t_log';");
+    match &pl {
+        PlStatement::Execute(e) => {
+            assert!(e.parsed_query.is_some(), "parsed_query must be Some");
+        }
+        other => panic!("expected Execute, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_issue320_guard_visitor_reaches_inline_ddl() {
+    // The whole point of #320: visitors must now see the DDL statement.
+    struct DdlSpy {
+        saw_truncate: bool,
+    }
+    impl crate::ast::visitor::Visitor for DdlSpy {
+        fn visit_statement(&mut self, stmt: &crate::ast::Statement) -> crate::ast::visitor::VisitorResult {
+            if matches!(stmt, crate::ast::Statement::Truncate(_)) {
+                self.saw_truncate = true;
+            }
+            crate::ast::visitor::VisitorResult::Continue
+        }
+    }
+    let sql = "CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  TRUNCATE TABLE t_log;\nEND;";
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = crate::parser::Parser::new(tokens).parse();
+    let mut spy = DdlSpy { saw_truncate: false };
+    for s in &stmts {
+        crate::ast::visitor::walk_statement(&mut spy, s);
+    }
+    assert!(spy.saw_truncate, "visitor must reach inline TRUNCATE");
+}
