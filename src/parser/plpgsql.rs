@@ -1116,6 +1116,9 @@ impl Parser {
     ///   captured `sql_text` excludes it to match the DML convention.
     /// - Does NOT set `pl_into_mode` (DDL has no INTO) and does NOT consume
     ///   hints (DDL takes no hints).
+    /// - Unlike the DML scaffold, no "missing semicolon" diagnostic is emitted
+    ///   for lenient DDL parses: pre-#320 such inputs fell through silently as
+    ///   raw SQL, and adding a new error here would change accepted inputs.
     fn try_parse_inline_ddl_as_pl_statement(&mut self) -> Option<PlStatement> {
         let is_ddl_start = matches!(
             self.peek(),
@@ -1147,9 +1150,10 @@ impl Parser {
                 // not see a spurious empty statement.
                 self.try_consume_semicolon();
                 // parse_statement may have consumed the trailing semicolon;
-                // exclude it from sql_text (DML convention).
+                // strip all trailing semicolons from sql_text (DML convention;
+                // `;;` leaves two consumed semicolons behind).
                 let mut end_pos = self.pos;
-                if end_pos > start_pos
+                while end_pos > start_pos
                     && matches!(self.tokens.get(end_pos - 1).map(|t| &t.token), Some(Token::Semicolon))
                 {
                     end_pos -= 1;
@@ -2864,7 +2868,16 @@ impl Parser {
         for name in param_names {
             self.declare_var(name);
         }
+        // Pair push/pop around the fallible inner parse (same pattern as
+        // parse_pl_block_body): `?` early-returns inside must not leak the
+        // pushed scope frame, or backtracking callers (e.g. the inline-DDL
+        // helper, issue #320) would leave phantom variable declarations.
+        let result = self.parse_procedure_body_inner();
+        self.pop_scope();
+        result
+    }
 
+    fn parse_procedure_body_inner(&mut self) -> Result<PlBlock, ParserError> {
         let mut declarations = Vec::new();
 
         while !self.match_keyword(Keyword::BEGIN_P) && !matches!(self.peek(), Token::Eof) {
@@ -2922,7 +2935,6 @@ impl Parser {
                 exception_block = Some(self.parse_pl_exception_block()?);
             } else if self.peek_keyword() == Some(Keyword::END_P) {
                 if self.lookahead_is_compound_end() {
-                    self.pop_scope();
                     return Err(ParserError::UnexpectedToken {
                         location: self.current_location(),
                         expected: "end of procedure body".to_string(),
@@ -2950,7 +2962,6 @@ impl Parser {
             }
         }
 
-        self.pop_scope();
         Ok(PlBlock { label: None, declarations, body, exception_block, end_label: None })
     }
 

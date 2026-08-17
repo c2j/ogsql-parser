@@ -1462,3 +1462,65 @@ fn test_issue320_guard_visitor_reaches_inline_ddl() {
     }
     assert!(spy.saw_truncate, "visitor must reach inline TRUNCATE");
 }
+
+// ── Issue #320 review fixes: scope balance + sql_text semicolon hygiene ──
+
+#[test]
+fn test_issue320_guard_no_scope_leak_after_failed_inline_create_procedure() {
+    // A malformed inline CREATE PROCEDURE enters parse_procedure_body (which
+    // pushes a scope and declares param `p`), fails before BEGIN, and the DDL
+    // helper backtracks. The pushed scope frame must NOT leak: a later
+    // `p := 1;` in the outer body must classify its target as ColumnRef
+    // (undeclared), not PlVariable via a phantom frame.
+    let sql = "CREATE OR REPLACE PROCEDURE outer_p IS
+BEGIN
+  CREATE PROCEDURE bad_proc (p int) IS junk;
+  p := 1;
+END;";
+    let stmt = parse_one(sql);
+    let proc = match &stmt {
+        Statement::CreateProcedure(p) => p,
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    };
+    let block = proc.block.as_ref().expect("block");
+    let assignment = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::Assignment { target, .. } => Some(target),
+            _ => None,
+        })
+        .expect("body should contain the `p := 1` assignment");
+    assert!(
+        matches!(assignment, Expr::ColumnRef(name) if name == &["p".to_string()]),
+        "target must be ColumnRef (no phantom scope frame), got {:?}",
+        assignment
+    );
+}
+
+#[test]
+fn test_issue320_inline_ddl_sql_text_with_double_semicolon() {
+    // `TRUNCATE TABLE t_log;;` — one semicolon consumed by the top-level
+    // TRUNCATE arm, one by the helper. sql_text must strip ALL trailing
+    // semicolons, not just the last one.
+    let sql = "CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  TRUNCATE TABLE t_log;;\nEND;";
+    let stmt = parse_one(sql);
+    let proc = match &stmt {
+        Statement::CreateProcedure(p) => p,
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    };
+    let block = proc.block.as_ref().expect("block");
+    let sql_text = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::SqlStatement { sql_text, statement, .. }
+                if matches!(statement.as_ref(), crate::ast::Statement::Truncate(_)) =>
+            {
+                Some(sql_text.clone())
+            }
+            _ => None,
+        })
+        .expect("body should contain structured TRUNCATE");
+    assert!(!sql_text.trim_end().ends_with(';'), "sql_text must not end with a semicolon: {:?}", sql_text);
+}
