@@ -1208,3 +1208,180 @@ END test_pkg;"#;
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
 }
+
+// ── Issue #320: inline DDL in PL bodies should produce structured AST ──
+
+/// Helper: parse a procedure body and return its single PlStatement.
+fn parse_single_pl_stmt_in_proc(body_sql: &str) -> PlStatement {
+    let sql = format!("CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  {}\nEND;", body_sql);
+    let stmt = parse_one(&sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a block");
+            assert_eq!(block.body.len(), 1, "expected exactly 1 statement, got {:?}", block.body);
+            block.body[0].clone()
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_truncate_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("TRUNCATE TABLE t_log;");
+    match &pl {
+        PlStatement::SqlStatement { statement, sql_text, .. } => {
+            assert!(
+                matches!(statement.as_ref(), crate::ast::Statement::Truncate(_)),
+                "expected Truncate, got {:?}",
+                statement
+            );
+            assert!(!sql_text.is_empty(), "sql_text must not be empty");
+            assert!(
+                !sql_text.trim_end().ends_with(';'),
+                "sql_text must exclude trailing semicolon (DML convention): {:?}",
+                sql_text
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_alter_table_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("ALTER TABLE t_stage RENAME TO t_old;");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(
+                matches!(statement.as_ref(), crate::ast::Statement::AlterTable(_)),
+                "expected AlterTable, got {:?}",
+                statement
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_create_index_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("CREATE INDEX idx_t ON t_log (id);");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(
+                matches!(statement.as_ref(), crate::ast::Statement::CreateIndex(_)),
+                "expected CreateIndex, got {:?}",
+                statement
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_drop_table_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("DROP TABLE t_old;");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(matches!(statement.as_ref(), crate::ast::Statement::Drop(_)), "expected Drop, got {:?}", statement);
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_lock_table_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("LOCK TABLE t_log IN EXCLUSIVE MODE;");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(matches!(statement.as_ref(), crate::ast::Statement::Lock(_)), "expected Lock, got {:?}", statement);
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_comment_on_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("COMMENT ON TABLE t_log IS 'audit log';");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(
+                matches!(statement.as_ref(), crate::ast::Statement::Comment(_)),
+                "expected Comment, got {:?}",
+                statement
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_analyze_vacuum_cluster_reindex_in_procedure_body() {
+    for (body, name) in [
+        ("ANALYZE t_log;", "Analyze"),
+        ("VACUUM t_log;", "Vacuum"),
+        ("CLUSTER t_log;", "Cluster"),
+        ("REINDEX TABLE t_log;", "Reindex"),
+    ] {
+        let pl = parse_single_pl_stmt_in_proc(body);
+        match &pl {
+            PlStatement::SqlStatement { statement, .. } => {
+                let ok = matches!(
+                    statement.as_ref(),
+                    crate::ast::Statement::Analyze(_)
+                        | crate::ast::Statement::Vacuum(_)
+                        | crate::ast::Statement::Cluster(_)
+                        | crate::ast::Statement::Reindex(_)
+                );
+                assert!(ok, "{}: expected structured DDL, got {:?}", name, statement);
+            }
+            other => panic!("{}: expected SqlStatement, got {:?}", name, other),
+        }
+    }
+}
+
+#[test]
+fn test_inline_ddl_followed_by_next_statement() {
+    // 守护:parse_statement 内部消费分号后,后续语句仍正常解析
+    let sql =
+        "CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  TRUNCATE TABLE t_log;\n  INSERT INTO t_log VALUES (1);\nEND;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("block");
+            assert_eq!(block.body.len(), 2, "expected 2 statements, got {:?}", block.body);
+            assert!(matches!(&block.body[0], PlStatement::SqlStatement { statement, .. }
+                if matches!(statement.as_ref(), crate::ast::Statement::Truncate(_))));
+            assert!(matches!(&block.body[1], PlStatement::SqlStatement { statement, .. }
+                if matches!(statement.as_ref(), crate::ast::Statement::Insert(_))));
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_ddl_in_package_body_procedure() {
+    // 与 test_with_insert_in_procedure_body 同构,覆盖 PACKAGE BODY 路径
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS
+               PROCEDURE proc1 IS
+               BEGIN
+                 TRUNCATE TABLE t_log;
+               END proc1;
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
+            let block = proc.block.as_ref().expect("block");
+            assert_eq!(block.body.len(), 1);
+            assert!(matches!(&block.body[0], PlStatement::SqlStatement { statement, .. }
+                if matches!(statement.as_ref(), crate::ast::Statement::Truncate(_))));
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
