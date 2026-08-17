@@ -764,6 +764,8 @@ impl Parser {
             }
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
+        } else if let Some(stmt) = self.try_parse_inline_ddl_as_pl_statement() {
+            Ok(stmt)
         } else {
             let is_dml_start = matches!(
                 self.peek(),
@@ -1092,6 +1094,79 @@ impl Parser {
                 if let Some(e) = first_err {
                     self.errors.push(e);
                 }
+                None
+            }
+        }
+    }
+
+    /// Issue #320: parse inline DDL inside PL bodies into structured AST.
+    ///
+    /// Gated on DDL-start keywords that the top-level `parse_statement()`
+    /// dispatches on. On success wraps the result as
+    /// `PlStatement::SqlStatement`; on ANY failure (parse error recorded, or
+    /// recovery fallback `Statement::Empty`) restores position and error
+    /// state so the caller falls through to `parse_pl_sql_or_assignment`
+    /// (raw-string fallback) — preserving pre-#320 behavior exactly.
+    ///
+    /// Notes:
+    /// - Unreserved keywords (ALTER/COMMENT/DROP/LOCK_P/TRUNCATE/VACUUM) are
+    ///   legal PL variable names (`lock := 1;`). Those inputs fail DDL parse
+    ///   and backtrack cleanly to the assignment path.
+    /// - `parse_statement()` consumes the trailing semicolon itself; the
+    ///   captured `sql_text` excludes it to match the DML convention.
+    /// - Does NOT set `pl_into_mode` (DDL has no INTO) and does NOT consume
+    ///   hints (DDL takes no hints).
+    fn try_parse_inline_ddl_as_pl_statement(&mut self) -> Option<PlStatement> {
+        let is_ddl_start = matches!(
+            self.peek(),
+            Token::Keyword(
+                Keyword::TRUNCATE
+                    | Keyword::CREATE
+                    | Keyword::ALTER
+                    | Keyword::DROP
+                    | Keyword::LOCK_P
+                    | Keyword::COMMENT
+                    | Keyword::ANALYZE
+                    | Keyword::VACUUM
+                    | Keyword::CLUSTER
+                    | Keyword::REINDEX
+            )
+        );
+        if !is_ddl_start {
+            return None;
+        }
+
+        let save_pos = self.pos;
+        let start_pos = self.pos;
+        let saved_error_count = self.errors.len();
+
+        match self.parse_statement() {
+            Ok(stmt) if self.errors.len() == saved_error_count && !matches!(stmt, crate::ast::Statement::Empty) => {
+                // Some dispatch paths (dispatch_create/alter/drop) leave the
+                // trailing semicolon unconsumed; consume it so the caller does
+                // not see a spurious empty statement.
+                self.try_consume_semicolon();
+                // parse_statement may have consumed the trailing semicolon;
+                // exclude it from sql_text (DML convention).
+                let mut end_pos = self.pos;
+                if end_pos > start_pos
+                    && matches!(self.tokens.get(end_pos - 1).map(|t| &t.token), Some(Token::Semicolon))
+                {
+                    end_pos -= 1;
+                }
+                let sql_text = self.tokens_to_raw_string(start_pos, end_pos);
+                Some(PlStatement::SqlStatement {
+                    span: Some(SourceSpan {
+                        start: self.tokens.get(start_pos).map(|t| t.location).unwrap_or_default(),
+                        end: self.prev_location(),
+                    }),
+                    sql_text,
+                    statement: Box::new(stmt),
+                })
+            }
+            _ => {
+                self.pos = save_pos;
+                self.errors.truncate(saved_error_count);
                 None
             }
         }
