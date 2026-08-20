@@ -1208,3 +1208,319 @@ END test_pkg;"#;
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
 }
+
+// ── Issue #320: inline DDL in PL bodies should produce structured AST ──
+
+/// Helper: parse a procedure body and return its single PlStatement.
+fn parse_single_pl_stmt_in_proc(body_sql: &str) -> PlStatement {
+    let sql = format!("CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  {}\nEND;", body_sql);
+    let stmt = parse_one(&sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a block");
+            assert_eq!(block.body.len(), 1, "expected exactly 1 statement, got {:?}", block.body);
+            block.body[0].clone()
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_truncate_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("TRUNCATE TABLE t_log;");
+    match &pl {
+        PlStatement::SqlStatement { statement, sql_text, .. } => {
+            assert!(
+                matches!(statement.as_ref(), crate::ast::Statement::Truncate(_)),
+                "expected Truncate, got {:?}",
+                statement
+            );
+            assert!(!sql_text.is_empty(), "sql_text must not be empty");
+            assert!(
+                !sql_text.trim_end().ends_with(';'),
+                "sql_text must exclude trailing semicolon (DML convention): {:?}",
+                sql_text
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_alter_table_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("ALTER TABLE t_stage RENAME TO t_old;");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(
+                matches!(statement.as_ref(), crate::ast::Statement::AlterTable(_)),
+                "expected AlterTable, got {:?}",
+                statement
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_create_index_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("CREATE INDEX idx_t ON t_log (id);");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(
+                matches!(statement.as_ref(), crate::ast::Statement::CreateIndex(_)),
+                "expected CreateIndex, got {:?}",
+                statement
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_drop_table_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("DROP TABLE t_old;");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(matches!(statement.as_ref(), crate::ast::Statement::Drop(_)), "expected Drop, got {:?}", statement);
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_lock_table_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("LOCK TABLE t_log IN EXCLUSIVE MODE;");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(matches!(statement.as_ref(), crate::ast::Statement::Lock(_)), "expected Lock, got {:?}", statement);
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_comment_on_in_procedure_body() {
+    let pl = parse_single_pl_stmt_in_proc("COMMENT ON TABLE t_log IS 'audit log';");
+    match &pl {
+        PlStatement::SqlStatement { statement, .. } => {
+            assert!(
+                matches!(statement.as_ref(), crate::ast::Statement::Comment(_)),
+                "expected Comment, got {:?}",
+                statement
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_analyze_vacuum_cluster_reindex_in_procedure_body() {
+    for (body, name) in [
+        ("ANALYZE t_log;", "Analyze"),
+        ("VACUUM t_log;", "Vacuum"),
+        ("CLUSTER t_log;", "Cluster"),
+        ("REINDEX TABLE t_log;", "Reindex"),
+    ] {
+        let pl = parse_single_pl_stmt_in_proc(body);
+        match &pl {
+            PlStatement::SqlStatement { statement, .. } => {
+                let ok = matches!(
+                    statement.as_ref(),
+                    crate::ast::Statement::Analyze(_)
+                        | crate::ast::Statement::Vacuum(_)
+                        | crate::ast::Statement::Cluster(_)
+                        | crate::ast::Statement::Reindex(_)
+                );
+                assert!(ok, "{}: expected structured DDL, got {:?}", name, statement);
+            }
+            other => panic!("{}: expected SqlStatement, got {:?}", name, other),
+        }
+    }
+}
+
+#[test]
+fn test_inline_ddl_followed_by_next_statement() {
+    // 守护:parse_statement 内部消费分号后,后续语句仍正常解析
+    let sql =
+        "CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  TRUNCATE TABLE t_log;\n  INSERT INTO t_log VALUES (1);\nEND;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("block");
+            assert_eq!(block.body.len(), 2, "expected 2 statements, got {:?}", block.body);
+            assert!(matches!(&block.body[0], PlStatement::SqlStatement { statement, .. }
+                if matches!(statement.as_ref(), crate::ast::Statement::Truncate(_))));
+            assert!(matches!(&block.body[1], PlStatement::SqlStatement { statement, .. }
+                if matches!(statement.as_ref(), crate::ast::Statement::Insert(_))));
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_inline_ddl_in_package_body_procedure() {
+    // 与 test_with_insert_in_procedure_body 同构,覆盖 PACKAGE BODY 路径
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS
+               PROCEDURE proc1 IS
+               BEGIN
+                 TRUNCATE TABLE t_log;
+               END proc1;
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
+            let block = proc.block.as_ref().expect("block");
+            assert_eq!(block.body.len(), 1);
+            assert!(matches!(&block.body[0], PlStatement::SqlStatement { statement, .. }
+                if matches!(statement.as_ref(), crate::ast::Statement::Truncate(_))));
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+// ── Issue #320 regression guards: pre-existing behavior must not change ──
+
+#[test]
+fn test_issue320_guard_unreserved_ddl_keyword_as_assignment_target() {
+    // lock / truncate / comment / drop are Unreserved — legal variable names.
+    // The DDL gate must backtrack cleanly and leave these as assignments.
+    for body in ["lock := 1;", "truncate := 2;", "comment := 'x';", "drop := 3;", "vacuum := 4;", "alter := 5;"] {
+        let pl = parse_single_pl_stmt_in_proc(body);
+        assert!(matches!(&pl, PlStatement::Assignment { .. }), "{:?}: expected Assignment, got {:?}", body, pl);
+    }
+}
+
+#[test]
+fn test_issue320_guard_ddl_keyword_named_procedure_call() {
+    // `lock(1);` — unreserved keyword as procedure name; DDL parse fails on '(',
+    // must backtrack to the procedure-call path.
+    let pl = parse_single_pl_stmt_in_proc("lock(1);");
+    assert!(!matches!(&pl, PlStatement::SqlStatement { .. }), "lock(1) must not be parsed as DDL, got {:?}", pl);
+}
+
+#[test]
+fn test_issue320_guard_malformed_ddl_falls_back_to_raw_sql_without_errors() {
+    // Malformed DDL keeps the pre-#320 behavior: raw PlStatement::Sql, no
+    // parse errors leaked from the failed structured attempt.
+    let sql = "CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  TRUNCATE 123 WHAT;\nEND;";
+    let tokens = crate::Tokenizer::new(sql).tokenize().expect("tokenize");
+    let mut parser = crate::parser::Parser::new(tokens);
+    let stmts = parser.parse();
+    // 以现状(修复前 git stash 验证)为基准:该输入解析成功且体内为 Sql 裸字符串
+    let proc = match &stmts[0] {
+        Statement::CreateProcedure(p) => p,
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    };
+    let block = proc.block.as_ref().expect("block");
+    assert!(
+        matches!(&block.body[0], PlStatement::Sql(s) if s.to_uppercase().contains("TRUNCATE")),
+        "expected raw Sql fallback, got {:?}",
+        block.body[0]
+    );
+}
+
+#[test]
+fn test_issue320_guard_execute_immediate_ddl_unchanged() {
+    // EXECUTE IMMEDIATE literal DDL must still produce parsed_query.
+    let pl = parse_single_pl_stmt_in_proc("EXECUTE IMMEDIATE 'TRUNCATE TABLE t_log';");
+    match &pl {
+        PlStatement::Execute(e) => {
+            assert!(e.parsed_query.is_some(), "parsed_query must be Some");
+        }
+        other => panic!("expected Execute, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_issue320_guard_visitor_reaches_inline_ddl() {
+    // The whole point of #320: visitors must now see the DDL statement.
+    struct DdlSpy {
+        saw_truncate: bool,
+    }
+    impl crate::ast::visitor::Visitor for DdlSpy {
+        fn visit_statement(&mut self, stmt: &crate::ast::Statement) -> crate::ast::visitor::VisitorResult {
+            if matches!(stmt, crate::ast::Statement::Truncate(_)) {
+                self.saw_truncate = true;
+            }
+            crate::ast::visitor::VisitorResult::Continue
+        }
+    }
+    let sql = "CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  TRUNCATE TABLE t_log;\nEND;";
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = crate::parser::Parser::new(tokens).parse();
+    let mut spy = DdlSpy { saw_truncate: false };
+    for s in &stmts {
+        crate::ast::visitor::walk_statement(&mut spy, s);
+    }
+    assert!(spy.saw_truncate, "visitor must reach inline TRUNCATE");
+}
+
+// ── Issue #320 review fixes: scope balance + sql_text semicolon hygiene ──
+
+#[test]
+fn test_issue320_guard_no_scope_leak_after_failed_inline_create_procedure() {
+    // A malformed inline CREATE PROCEDURE enters parse_procedure_body (which
+    // pushes a scope and declares param `p`), fails before BEGIN, and the DDL
+    // helper backtracks. The pushed scope frame must NOT leak: a later
+    // `p := 1;` in the outer body must classify its target as ColumnRef
+    // (undeclared), not PlVariable via a phantom frame.
+    let sql = "CREATE OR REPLACE PROCEDURE outer_p IS
+BEGIN
+  CREATE PROCEDURE bad_proc (p int) IS junk;
+  p := 1;
+END;";
+    let stmt = parse_one(sql);
+    let proc = match &stmt {
+        Statement::CreateProcedure(p) => p,
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    };
+    let block = proc.block.as_ref().expect("block");
+    let assignment = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::Assignment { target, .. } => Some(target),
+            _ => None,
+        })
+        .expect("body should contain the `p := 1` assignment");
+    assert!(
+        matches!(assignment, Expr::ColumnRef(name) if name == &["p".to_string()]),
+        "target must be ColumnRef (no phantom scope frame), got {:?}",
+        assignment
+    );
+}
+
+#[test]
+fn test_issue320_inline_ddl_sql_text_with_double_semicolon() {
+    // `TRUNCATE TABLE t_log;;` — one semicolon consumed by the top-level
+    // TRUNCATE arm, one by the helper. sql_text must strip ALL trailing
+    // semicolons, not just the last one.
+    let sql = "CREATE OR REPLACE PROCEDURE p_demo IS\nBEGIN\n  TRUNCATE TABLE t_log;;\nEND;";
+    let stmt = parse_one(sql);
+    let proc = match &stmt {
+        Statement::CreateProcedure(p) => p,
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    };
+    let block = proc.block.as_ref().expect("block");
+    let sql_text = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::SqlStatement { sql_text, statement, .. }
+                if matches!(statement.as_ref(), crate::ast::Statement::Truncate(_)) =>
+            {
+                Some(sql_text.clone())
+            }
+            _ => None,
+        })
+        .expect("body should contain structured TRUNCATE");
+    assert!(!sql_text.trim_end().ends_with(';'), "sql_text must not end with a semicolon: {:?}", sql_text);
+}
