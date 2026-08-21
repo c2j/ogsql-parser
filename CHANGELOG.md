@@ -2,6 +2,25 @@
 
 All notable changes to ogsql-parser will be documented in this file.
 
+## [0.10.0]
+
+### Added
+- Publish `ogsql-parser-java` (`io.github.c2j:ogsql-parser-java`) to Maven Central
+  via the Central Portal: source/javadoc jars, GPG-signed artifacts, and a deploy
+  pipeline in `.github/workflows/java-connector.yml` (secrets: SONATYPE_USERNAME/
+  PASSWORD, GPG_PRIVATE_KEY, GPG_PASSPHRASE, GPG_KEY_ID). One-time manual steps
+  (namespace registration, GPG key, user token) documented in
+  `docs/java-developer-guide.md` §3.
+
+### Fixed
+- Parse inline DDL statements in PL/pgSQL bodies as a structured AST (previously
+  inline DDL in PL bodies was not captured as structured AST). Scope push/pop in
+  `parse_procedure_body` is now balanced via a wrapper pattern — `?` early-returns
+  no longer leak a pushed scope frame that left phantom variable declarations after
+  the inline-DDL helper backtracks from a malformed `CREATE PROCEDURE`; trailing
+  semicolons are stripped from inline DDL `sql_text` (`;;` case). Regression guards
+  added.
+
 ## [0.9.0]
 
 ### Added
