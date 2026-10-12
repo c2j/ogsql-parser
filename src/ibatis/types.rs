@@ -342,9 +342,19 @@ impl Default for ExpandConfig {
 /// 展开过程中每个分支决策的记录。
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BranchStep {
-    If { test: String, included: bool },
-    Choose { branch_index: usize },
-    Foreach { collection: String, size: usize },
+    If {
+        test: String,
+        included: bool,
+    },
+    Choose {
+        branch_index: usize,
+    },
+    /// `<choose>` 无 `<otherwise>` 且所有 `<when>` 未命中 —— 整体渲染为空。
+    ChooseNoMatch,
+    Foreach {
+        collection: String,
+        size: usize,
+    },
 }
 
 /// 展开后的单个 SQL 变体。

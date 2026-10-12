@@ -137,10 +137,31 @@ pub fn register(linter: &mut SqlLinter) {
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_c019,
         },
+        LintRuleEntry {
+            id: "C020",
+            name: "dynamic-delete-update-full-table",
+            description: "Dynamic DELETE/UPDATE (iBatis/MyBatis) can execute with a tautology-free or missing WHERE when runtime conditions go unmatched, silently affecting the whole table. Actual detection runs on the structured SqlNode tree (linter::structured), this flat entry exists for catalog/SARIF alignment",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Delete,
+            check_fn: check_c020_structured_only,
+        },
     ];
     for rule in rules {
         linter.register(rule);
     }
+}
+
+/// C020 的实际检测在 `linter::structured::lint_structured_mapper`（需 SqlNode 树），
+/// 此 no-op 仅保证 C020 出现在共享规则目录（all_rules_metadata / SARIF driver）。
+fn check_c020_structured_only(
+    _curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
+    _config: &LintConfig,
+    _confidence: Confidence,
+    _warnings: &mut Vec<SqlWarning>,
+) {
 }
 
 /// Extract hints from a statement (SELECT, INSERT, UPDATE, DELETE).

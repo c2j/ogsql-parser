@@ -1,0 +1,12 @@
+<!-- description: UPDATE WHERE 1=1 plus optional if degrades to full-table update -->
+<!-- warn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <update id="updateByCondition">
+        UPDATE users SET name = #{name}
+        WHERE 1=1
+        <if test="param.status != null">
+            AND status = #{param.status}
+        </if>
+    </update>
+</mapper>

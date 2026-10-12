@@ -61,7 +61,7 @@ OGSQL Parser 是一个使用 Rust 编写的 SQL 解析器，专为 openGauss / G
 - **Java 源文件 SQL 提取**：从 Java 代码中提取并解析嵌入的 SQL 语句
 - **多字符集支持**：自动检测和转换 UTF-8、EUC-JP、EUC-KR、GB18030、BIG5、UTF-16
 - **MCP 服务器**：作为 AI 工具服务器，与 Claude Desktop、Cursor 等 AI 编辑器集成
-- **SQL 反模式检测 (Lint)**：内置 61 条规则，覆盖禁止项、性能、注意事项和建议四个等级
+- **SQL 反模式检测 (Lint)**：内置 62 条规则，覆盖禁止项、性能、注意事项和建议四个等级
 
 该项目提供了多种使用方式：命令行工具、HTTP API 服务、交互式终端以及 MCP 服务器。
 
@@ -534,7 +534,7 @@ curl -X POST http://localhost:3000/api/validate \
 |------|------|--------|------|
 | `min_level` | string | `"suggestion"` | 最低报告级别：`prohibition`、`performance`、`caution`、`suggestion` |
 | `min_confidence` | string | `"partial"` | 最低可信度：`full`、`partial` |
-| `suppress` | string[] | `[]` | 禁用的规则 ID 列表（如 `["P001", "C018"]`） |
+| `suppress` | string[] | `[]` | 禁用的规则 ID 列表（如 `["P001", "C018", "C020"]`） |
 | `in_list_threshold` | number | `500` | P003 IN 列表大小阈值 |
 | `subquery_depth_limit` | number | `3` | P014 子查询嵌套深度限制 |
 | `non_equi_join_limit` | number | `2` | P007 非等值连接数限制 |
@@ -830,7 +830,7 @@ MIT OR Apache-2.0 双许可，您可以选择其中任一使用。
 
 ## 11. SQL 反模式检测 (Lint)
 
-OGSQL Parser 内置 SQL 静态检测引擎 (`SqlLinter`)，可识别 61 条反模式规则，覆盖**禁止项 (Prohibition)**、**性能 (Performance)**、**注意事项 (Caution)** 和**建议 (Suggestion)** 四个等级。
+OGSQL Parser 内置 SQL 静态检测引擎 (`SqlLinter`)，可识别 62 条反模式规则，覆盖**禁止项 (Prohibition)**、**性能 (Performance)**、**注意事项 (Caution)** 和**建议 (Suggestion)** 四个等级。
 
 ### 11.1 快速开始
 
@@ -901,7 +901,7 @@ foreach_estimated_rows = 1000   # iBatis <foreach> 预估迭代次数（用于 C
 ### 11.4 规则清单
 
 > **等级说明**：`Prohibition`(禁止项) > `Performance`(性能) > `Caution`(注意) > `Suggestion`(建议)。
-> 共 61 条规则（11 Prohibition + 25 Performance + 17 Caution + 8 Suggestion = 61）。
+> 共 62 条规则（11 Prohibition + 25 Performance + 18 Caution + 8 Suggestion = 62）。
 > 编号不连续（如 C002–C004、S003–S004 不存在）是规划中预留的规则位。
 
 #### 禁止项 (Prohibition) — 违反 GaussDB 编码规范，可能引发数据安全风险（11 条）
@@ -970,6 +970,7 @@ foreach_estimated_rows = 1000   # iBatis <foreach> 预估迭代次数（用于 C
 | C017 | `raise-in-exception-clears-variables` | PL Block | RAISE 在 EXCEPTION 块中会清空所有局部变量值（包括 OUT 参数），导致调用方无法获取错误信息。建议使用 RAISE INFO 传递具体错误信息，或在 RAISE 前将输出值保存到临时表/全局变量 |
 | C018 | `excessive-insert-values` | INSERT | `INSERT VALUES` 的 `行数 × 列数` 超过阈值（默认 65535）。建议拆分为更小批次插入以减少锁持有时间，或使用 COPY。iBatis/MyBatis 变体还会检测 `<foreach>` 动态批量插入中的参数膨胀风险 |
 | C019 | `commit-inside-loop` | PL Block | PL/pgSQL 循环体内包含 COMMIT/ROLLBACK，导致事务不原子且频繁提交影响性能（在存储过程体内同样检测）。建议将事务控制移出循环或使用批量操作 |
+| C020 | `dynamic-delete-update-full-table` | iBatis/MyBatis XML | 动态 DELETE/UPDATE 在全部 `<if>`/`<choose>` 条件不命中的退化形态下，WHERE 缺失或不含任何数据依赖谓词（如 `WHERE 1=1 + <if>` 退化为全表操作）。退化 SQL 解析失败（如 `IN ()`）不告警——运行时会响亮报错。建议保留非动态数据谓词，或经 `suppress` 关闭 |
 
 #### 建议 (Suggestion) — 改善可维护性和健壮性，不影响正确性（8 条）
 

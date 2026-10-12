@@ -1,0 +1,12 @@
+<!-- description: DELETE WHERE 1=1 plus optional if degrades to full-table delete -->
+<!-- warn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <delete id="deleteByCondition">
+        DELETE FROM users
+        WHERE 1=1
+        <if test="param.c1 != null">
+            AND c1=#{param.c1}
+        </if>
+    </delete>
+</mapper>

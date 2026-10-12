@@ -655,6 +655,15 @@ mod xml_lint_regress {
                 }
             }
 
+            // structured lint（动态退化类规则，如 C018/C020）需在 SqlNode 树上检查，flat lint 不可见。
+            // 对既有夹具为纯加法：仅扩充 rule_ids 池，不改变任何既有断言语义。
+            let structured = ibatis::parse_mapper_bytes_structured(f.xml.as_bytes());
+            for w in ogsql_parser::linter::structured::lint_structured_mapper(&structured, &LintConfig::default()) {
+                if !rule_ids.contains(&w.rule_id) {
+                    rule_ids.push(w.rule_id);
+                }
+            }
+
             for id in &f.warn {
                 assert!(
                     rule_ids.contains(id),

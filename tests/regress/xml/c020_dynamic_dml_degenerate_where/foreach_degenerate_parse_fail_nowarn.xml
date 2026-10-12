@@ -1,0 +1,13 @@
+<!-- description: degenerate foreach renders IN () which fails to parse — loud failure, no warning -->
+<!-- nowarn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <delete id="deleteByIds">
+        DELETE FROM users
+        WHERE 1=1
+        AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
