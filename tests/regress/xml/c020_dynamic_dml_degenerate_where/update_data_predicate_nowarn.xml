@@ -1,0 +1,12 @@
+<!-- description: UPDATE with data-dependent static predicate plus optional if is safe -->
+<!-- nowarn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <update id="updateById">
+        UPDATE users SET name = #{name}
+        WHERE id = #{id}
+        <if test="param.status != null">
+            AND status = #{param.status}
+        </if>
+    </update>
+</mapper>

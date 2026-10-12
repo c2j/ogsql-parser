@@ -1,0 +1,8 @@
+<!-- description: static DELETE without WHERE belongs to C008, not C020 -->
+<!-- nowarn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <delete id="deleteAll">
+        DELETE FROM users
+    </delete>
+</mapper>

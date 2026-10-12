@@ -286,6 +286,13 @@ fn expand_choose(
                 break;
             }
         }
+        // MyBatis 语义：无 <otherwise> 时所有 <when> 可能都不命中，choose 整体渲染为空。
+        let has_otherwise = branches.iter().any(|(test, _)| test.is_none());
+        if !has_otherwise && new_variants.len() < config.max_variants {
+            let mut p = v.branch_path;
+            p.push(BranchStep::ChooseNoMatch);
+            new_variants.push(ExpansionState { sql_buffer: parent_sql, branch_path: p, params: v.params });
+        }
         if new_variants.len() >= config.max_variants {
             break;
         }

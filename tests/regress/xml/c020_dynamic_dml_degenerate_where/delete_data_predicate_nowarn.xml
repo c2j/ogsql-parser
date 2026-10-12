@@ -1,0 +1,12 @@
+<!-- description: DELETE with data-dependent static predicate plus optional if is safe -->
+<!-- nowarn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <delete id="deleteById">
+        DELETE FROM users
+        WHERE id = #{id}
+        <if test="param.c1 != null">
+            AND c1 = #{param.c1}
+        </if>
+    </delete>
+</mapper>

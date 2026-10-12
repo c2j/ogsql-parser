@@ -1,0 +1,14 @@
+<!-- description: choose without otherwise can match nothing and WHERE degrades to tautology -->
+<!-- warn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <delete id="deleteByChoose">
+        DELETE FROM users
+        WHERE 1=1
+        <choose>
+            <when test="param.x != null">
+                AND x = #{param.x}
+            </when>
+        </choose>
+    </delete>
+</mapper>

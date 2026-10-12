@@ -1,0 +1,13 @@
+<!-- description: DELETE with where tag containing only if degrades to no WHERE at all -->
+<!-- warn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <delete id="deleteByOptional">
+        DELETE FROM users
+        <where>
+            <if test="param.c1 != null">
+                AND c1 = #{param.c1}
+            </if>
+        </where>
+    </delete>
+</mapper>

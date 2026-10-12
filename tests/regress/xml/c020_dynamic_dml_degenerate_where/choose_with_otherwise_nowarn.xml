@@ -1,0 +1,17 @@
+<!-- description: choose with otherwise always yields a data-dependent predicate -->
+<!-- nowarn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <delete id="deleteByChooseSafe">
+        DELETE FROM users
+        WHERE 1=1
+        <choose>
+            <when test="param.x != null">
+                AND x = #{param.x}
+            </when>
+            <otherwise>
+                AND id = #{id}
+            </otherwise>
+        </choose>
+    </delete>
+</mapper>

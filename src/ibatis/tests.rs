@@ -1531,6 +1531,56 @@ fn test_expand_choose_two_branches() {
 }
 
 #[test]
+fn test_expand_choose_without_otherwise_emits_zero_match_variant() {
+    // MyBatis 语义：choose 无 <otherwise> 且所有 <when> 不命中时整体渲染为空。
+    // 展开器必须为该"零命中"路径产出独立变体，否则退化形态不可见。
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <choose>
+                    <when test="id != null">AND id = #{id}</when>
+                </choose>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    assert_eq!(variants.len(), 2, "1 个 when 分支 + 1 个零命中变体");
+    let zero_match = variants.iter().find(|v| v.branch_path.iter().any(|s| matches!(s, BranchStep::ChooseNoMatch)));
+    assert!(zero_match.is_some(), "必须存在 ChooseNoMatch 分支路径");
+    let zero_match = zero_match.unwrap();
+    assert!(!zero_match.sql.contains("id ="), "零命中变体不应渲染 when 分支内容");
+    // serde 往返：BranchStep 是公开 JSON 契约的一部分
+    let json = serde_json::to_string(&zero_match.branch_path).unwrap();
+    let round_trip: Vec<BranchStep> = serde_json::from_str(&json).unwrap();
+    assert_eq!(round_trip, zero_match.branch_path, "BranchStep 序列化必须保真");
+}
+
+#[test]
+fn test_expand_choose_with_otherwise_no_zero_match() {
+    // 带 <otherwise> 的 choose 永远有一个分支命中，不存在零命中路径。
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <choose>
+                    <when test="id != null">AND id = #{id}</when>
+                    <otherwise>AND status = 'ACTIVE'</otherwise>
+                </choose>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    assert_eq!(variants.len(), 2, "仅 when + otherwise 两个分支变体");
+    assert!(
+        variants.iter().all(|v| !v.branch_path.iter().any(|s| matches!(s, BranchStep::ChooseNoMatch))),
+        "带 otherwise 时不得产出 ChooseNoMatch 变体"
+    );
+}
+
+#[test]
 fn test_expand_branch_path_recorded() {
     let xml = br#"<mapper namespace="test">
         <select id="find">
