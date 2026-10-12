@@ -20,6 +20,10 @@ pub fn lint_structured_mapper(mapper: &StructuredMapper, config: &LintConfig) ->
         return vec![];
     }
     let mut warnings = Vec::new();
+    // 本模块现有规则（C018/C020）均为 Caution 级，与 flat 侧 `rule.level < min_level` 同口径
+    if WarningLevel::Caution < config.min_level {
+        return warnings;
+    }
 
     for stmt in &mapper.statements {
         check_c020(stmt, config, &mut warnings);
@@ -60,10 +64,11 @@ fn is_suppressed(config: &LintConfig, rule_id: &str) -> bool {
     config.suppress.iter().any(|s| s == rule_id)
 }
 
-/// C020 `dynamic-delete-update-full-table`：模拟 MyBatis 运行时"全部动态条件不命中"
-/// 的退化形态（ExcludeOnly 展开、foreach 零迭代），若退化后 DELETE/UPDATE 的 WHERE
-/// 缺失或不含任何数据依赖谓词（ColumnRef/Parameter），则构成静默全表操作风险。
-/// 解析失败的退化变体（如 `IN ()`）会在运行时响亮报错，不告警。
+/// C020 `dynamic-delete-update-full-table`：枚举运行时条件组合（Both 策略、foreach
+/// 零/单迭代），若存在某个组合使 DELETE/UPDATE 以"WHERE 缺失或无数据依赖谓词
+/// （ColumnRef/Parameter）"的形态执行，即静默全表操作风险。解析失败的变体分两类、
+/// 均不告警：缺 SET 的 UPDATE 与空 `<set>`（运行时必然 SQL 报错，响亮失败）、
+/// foreach 零迭代的 `IN ()`（同理）。
 fn check_c020(stmt: &StructuredStatement, config: &LintConfig, warnings: &mut Vec<SqlWarning>) {
     if !stmt.has_dynamic_elements {
         return;
@@ -72,8 +77,8 @@ fn check_c020(stmt: &StructuredStatement, config: &LintConfig, warnings: &mut Ve
         return;
     }
     let expand_config = ExpandConfig {
-        if_strategy: IfExpandStrategy::ExcludeOnly,
-        foreach_sizes: vec![0],
+        if_strategy: IfExpandStrategy::Both,
+        foreach_sizes: vec![0, 1],
         generate_parse_results: true,
         ..ExpandConfig::default()
     };
@@ -112,8 +117,9 @@ fn check_c020(stmt: &StructuredStatement, config: &LintConfig, warnings: &mut Ve
             rule_id: "C020".to_string(),
             rule_name: "dynamic-delete-update-full-table".to_string(),
             message: format!(
-                "语句 {} 的动态条件全部不命中时，WHERE 退化为恒真或缺失，\
-                 将静默影响全表数据（DELETE 全删 / UPDATE 全改）。",
+                "语句 {} 存在运行时条件组合，使 WHERE 退化为恒真或缺失\
+                 （动态条件不命中而其余子句照常执行），将静默影响全表数据\
+                 （DELETE 全删 / UPDATE 全改）。",
                 stmt.id
             ),
             suggestion: Some(
@@ -129,11 +135,22 @@ fn check_c020(stmt: &StructuredStatement, config: &LintConfig, warnings: &mut Ve
 }
 
 /// WHERE 中是否存在数据依赖谓词：引用了任一 ColumnRef / Parameter 即实质谓词；
-/// 纯常量谓词（`1=1` 等）不含列引用，天然归零；子查询保守视为实质谓词（漏报方向，安全）。
+/// 纯常量谓词（`1=1` 等）不含列引用，天然归零。子查询类节点（Subquery/Exists/
+/// InSubquery/ScalarSublink）保守视为实质谓词（漏报方向，安全）——walk_expr 不下钻
+/// 其内部，故必须匹配容器节点本身；`NOT EXISTS` 经 UnaryOp 下钻后命中 Exists。
 fn expr_has_data_dependency(expr: &Expr) -> bool {
     let mut found = false;
     crate::linter::walk_expr(expr, &mut |e| {
-        if matches!(e, Expr::ColumnRef(_) | Expr::ColumnRefOuterJoin(_) | Expr::Parameter(_) | Expr::Subquery(_)) {
+        if matches!(
+            e,
+            Expr::ColumnRef(_)
+                | Expr::ColumnRefOuterJoin(_)
+                | Expr::Parameter(_)
+                | Expr::Subquery(_)
+                | Expr::Exists(_)
+                | Expr::InSubquery { .. }
+                | Expr::ScalarSublink { .. }
+        ) {
             found = true;
             return false;
         }
@@ -289,6 +306,33 @@ mod tests {
     }
 
     #[test]
+    fn c020_fires_when_update_set_is_dynamic() {
+        // 审核发现的典型部分更新 mapper：<set> 全部由 <if> 组成，WHERE 1=1 + 可选 <if>。
+        // 全 <if> 剥除的退化形态 UPDATE t WHERE 1=1 解析失败（缺 SET），但运行时 SET 条件
+        // 命中、WHERE 条件不命中 => UPDATE t SET col=? WHERE 1=1 —— 静默全表写。
+        let xml = br#"<mapper namespace="t">
+            <update id="updateByCondition">
+                UPDATE users
+                <set>
+                    <if test="name != null">name = #{name},</if>
+                    <if test="age != null">age = #{age},</if>
+                </set>
+                WHERE 1=1
+                <if test="param.status != null">
+                    AND status = #{param.status}
+                </if>
+            </update>
+        </mapper>"#;
+        let mapper = parse_mapper(xml);
+        let warnings = lint_structured_mapper(&mapper, &LintConfig::default());
+        assert_eq!(
+            warnings.iter().filter(|w| w.rule_id == "C020").count(),
+            1,
+            "SET 条件命中而 WHERE 条件全不命中的组合必须触发 C020，实际: {warnings:?}"
+        );
+    }
+
+    #[test]
     fn c020_silent_when_data_predicate_survives() {
         // 退化后 WHERE 仍含 id = #{id}（ColumnRef 判定）—— 安全，不告警
         let xml = br#"<mapper namespace="t">
@@ -306,6 +350,44 @@ mod tests {
             warnings.iter().all(|w| w.rule_id != "C020"),
             "退化后存在数据依赖谓词时不得触发 C020，实际: {warnings:?}"
         );
+    }
+
+    #[test]
+    fn c020_silent_when_where_has_exists_subquery() {
+        // 关联 EXISTS 是数据依赖谓词（子查询引用外层表）；walk_expr 不下钻 Exists，
+        // 但容器节点本身必须计为实质谓词，否则误报
+        let xml = br#"<mapper namespace="t">
+            <delete id="deleteByExists">
+                DELETE FROM users
+                WHERE EXISTS (SELECT 1 FROM orders o WHERE o.user_id = users.id)
+                <if test="param.c1 != null">
+                    AND c1 = #{param.c1}
+                </if>
+            </delete>
+        </mapper>"#;
+        let mapper = parse_mapper(xml);
+        let warnings = lint_structured_mapper(&mapper, &LintConfig::default());
+        assert!(
+            warnings.iter().all(|w| w.rule_id != "C020"),
+            "EXISTS 子查询是数据依赖谓词，不得触发 C020，实际: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn c020_silent_when_where_has_in_subquery() {
+        // WHERE 1 IN (SELECT ...) / IN 子查询形态同样必须计为实质谓词
+        let xml = br#"<mapper namespace="t">
+            <delete id="deleteByInSub">
+                DELETE FROM users
+                WHERE 1 IN (SELECT 1 FROM orders WHERE orders.user_id = users.id)
+                <if test="param.c1 != null">
+                    AND c1 = #{param.c1}
+                </if>
+            </delete>
+        </mapper>"#;
+        let mapper = parse_mapper(xml);
+        let warnings = lint_structured_mapper(&mapper, &LintConfig::default());
+        assert!(warnings.iter().all(|w| w.rule_id != "C020"), "实际: {warnings:?}");
     }
 
     #[test]
@@ -371,6 +453,33 @@ mod tests {
         let config_suppressed = LintConfig { suppress: vec!["C018".to_string()], ..config };
         let warnings = lint_structured_mapper(&mapper, &config_suppressed);
         assert!(warnings.iter().all(|w| w.rule_id != "C018"), "suppress 后不得输出 C018，实际: {warnings:?}");
+    }
+
+    #[test]
+    fn c020_respects_min_level() {
+        // structured 告警必须与 flat 侧同口径过滤 min_level（Caution < Prohibition → 跳过）
+        let xml = br#"<mapper namespace="t">
+            <delete id="deleteByCondition">
+                DELETE FROM users
+                WHERE 1=1
+                <if test="param.c1 != null">
+                    AND c1 = #{param.c1}
+                </if>
+            </delete>
+        </mapper>"#;
+        let mapper = parse_mapper(xml);
+        let config = LintConfig { min_level: WarningLevel::Prohibition, ..LintConfig::default() };
+        let warnings = lint_structured_mapper(&mapper, &config);
+        assert!(warnings.is_empty(), "min_level=Prohibition 时 Caution 级告警必须被过滤，实际: {warnings:?}");
+    }
+
+    #[test]
+    fn c020_registered_in_rule_catalog() {
+        // C020 必须出现在共享规则目录中（SARIF driver / 规则计数依赖其对齐）
+        let entry = crate::linter::all_rules_metadata().into_iter().find(|r| r.id == "C020");
+        let entry = entry.expect("C020 必须注册进 all_rules_metadata");
+        assert_eq!(entry.name, "dynamic-delete-update-full-table");
+        assert_eq!(entry.level, WarningLevel::Caution);
     }
 
     #[test]
@@ -455,6 +564,37 @@ mod tests {
         let mapper = parse_mapper(xml);
         let warnings = lint_structured_mapper(&mapper, &LintConfig::default());
         assert_eq!(warnings.iter().filter(|w| w.rule_id == "C020").count(), 1, "实际: {warnings:?}");
+    }
+
+    #[test]
+    fn c020_fires_on_nested_choose_degeneration() {
+        // 外层 when 命中而内层 choose（无 otherwise）零命中 => WHERE 1=1。
+        // 外层 otherwise 虽安全，但运行时组合存在全表删除路径。
+        let xml = br#"<mapper namespace="t">
+            <delete id="deleteByNestedChoose">
+                DELETE FROM users
+                WHERE 1=1
+                <choose>
+                    <when test="a != null">
+                        <choose>
+                            <when test="b != null">
+                                AND b = #{b}
+                            </when>
+                        </choose>
+                    </when>
+                    <otherwise>
+                        AND id = #{id}
+                    </otherwise>
+                </choose>
+            </delete>
+        </mapper>"#;
+        let mapper = parse_mapper(xml);
+        let warnings = lint_structured_mapper(&mapper, &LintConfig::default());
+        assert_eq!(
+            warnings.iter().filter(|w| w.rule_id == "C020").count(),
+            1,
+            "嵌套 choose 内层零命中组合必须触发 C020，实际: {warnings:?}"
+        );
     }
 
     #[test]

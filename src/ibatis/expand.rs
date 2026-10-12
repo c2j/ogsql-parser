@@ -276,12 +276,18 @@ fn expand_choose(
             for child in branch_children {
                 expand_node(child, &mut sub_vec, depth + 1, config);
             }
-            let sub = sub_vec.remove(0);
-            new_variants.push(ExpansionState {
-                sql_buffer: format!("{}{}", parent_sql, sub.sql_buffer),
-                branch_path: sub.branch_path,
-                params: sub.params,
-            });
+            // 保留分支体的全部子变体：嵌套 choose/trim 等会在分支体内产出
+            // 多个形态（含内层 ChooseNoMatch），只取 index 0 会丢弃退化形态。
+            for sub in sub_vec {
+                new_variants.push(ExpansionState {
+                    sql_buffer: format!("{}{}", parent_sql, sub.sql_buffer),
+                    branch_path: sub.branch_path,
+                    params: sub.params,
+                });
+                if new_variants.len() >= config.max_variants {
+                    break;
+                }
+            }
             if new_variants.len() >= config.max_variants {
                 break;
             }

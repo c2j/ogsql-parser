@@ -1581,6 +1581,38 @@ fn test_expand_choose_with_otherwise_no_zero_match() {
 }
 
 #[test]
+fn test_expand_nested_choose_without_otherwise_keeps_zero_match() {
+    // 嵌套 choose：内层无 <otherwise>。分支体的所有子变体（含内层零命中）
+    // 都必须保留，不能只取 index 0 —— 否则内层退化形态不可见。
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <choose>
+                    <when test="a != null">
+                        <choose>
+                            <when test="b != null">AND b = #{b}</when>
+                        </choose>
+                    </when>
+                    <otherwise>AND id = #{id}</otherwise>
+                </choose>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    let nested_zero_match = variants.iter().find(|v| {
+        matches!(v.branch_path.as_slice(), [BranchStep::Choose { branch_index: 0 }, BranchStep::ChooseNoMatch])
+    });
+    assert!(
+        nested_zero_match.is_some(),
+        "内层 choose 的零命中变体必须保留，实际 branch_path: {:?}",
+        variants.iter().map(|v| &v.branch_path).collect::<Vec<_>>()
+    );
+    assert!(!nested_zero_match.unwrap().sql.contains("b ="), "内层零命中变体不应渲染内层 when 内容");
+}
+
+#[test]
 fn test_expand_branch_path_recorded() {
     let xml = br#"<mapper namespace="test">
         <select id="find">

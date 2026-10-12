@@ -1,0 +1,21 @@
+<!-- description: nested choose without inner otherwise can render nothing inside a taken outer when, degrading WHERE to tautology -->
+<!-- warn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <delete id="deleteByNestedChoose">
+        DELETE FROM users
+        WHERE 1=1
+        <choose>
+            <when test="a != null">
+                <choose>
+                    <when test="b != null">
+                        AND b = #{b}
+                    </when>
+                </choose>
+            </when>
+            <otherwise>
+                AND id = #{id}
+            </otherwise>
+        </choose>
+    </delete>
+</mapper>

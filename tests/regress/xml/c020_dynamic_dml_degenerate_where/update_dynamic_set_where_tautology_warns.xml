@@ -1,0 +1,16 @@
+<!-- description: partial-update mapper with all-dynamic set plus WHERE 1=1 and optional if degrades to full-table update at runtime -->
+<!-- warn: C020 -->
+<!-- statements: 1 -->
+<mapper namespace="c020">
+    <update id="updateByCondition">
+        UPDATE users
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="age != null">age = #{age},</if>
+        </set>
+        WHERE 1=1
+        <if test="param.status != null">
+            AND status = #{param.status}
+        </if>
+    </update>
+</mapper>
