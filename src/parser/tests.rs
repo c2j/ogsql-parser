@@ -1884,6 +1884,30 @@ fn test_create_package_with_schema() {
 }
 
 #[test]
+fn test_create_package_body_with_schema_qualified_end_name() {
+    // `END schema.pkg;` is legal Oracle — the qualified END name must
+    // terminate the package like `END pkg;` does, not swallow the rest of
+    // the file into the spec's item list.
+    let stmts = parse(
+        "CREATE OR REPLACE PACKAGE REPRO.PKG_XMLDOM AS \
+         FUNCTION getnodevalue(p_node IN DBE_XMLDOM.DOMNODE) RETURN VARCHAR2; \
+         END REPRO.PKG_XMLDOM; / \
+         CREATE OR REPLACE PACKAGE BODY REPRO.PKG_XMLDOM AS \
+         FUNCTION getnodevalue(p_node IN DBE_XMLDOM.DOMNODE) RETURN VARCHAR2 IS \
+         BEGIN RETURN NULL; END getnodevalue; \
+         END REPRO.PKG_XMLDOM; /",
+    );
+    assert_eq!(
+        stmts.len(),
+        2,
+        "expected spec + body, got {:?}",
+        stmts.iter().map(std::mem::discriminant).collect::<Vec<_>>()
+    );
+    assert!(matches!(stmts[0], Statement::CreatePackage(_)));
+    assert!(matches!(stmts[1], Statement::CreatePackageBody(_)));
+}
+
+#[test]
 fn test_create_package_authid_current_user() {
     let stmt = parse_one("CREATE PACKAGE my_pkg AUTHID CURRENT_USER IS END my_pkg;");
     match stmt {

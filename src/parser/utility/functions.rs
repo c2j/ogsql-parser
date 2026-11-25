@@ -806,14 +806,31 @@ impl Parser {
                             continue;
                         }
                         // END followed by ident and then semicolon/EOF = final END pkg_name;
-                        // END followed by comma or other = CASE alias or similar, keep going
+                        // END followed by comma or other = CASE alias or similar, keep going.
+                        // The name may be schema-qualified (`END schema.pkg;`) — scan the
+                        // full dotted name before deciding.
                         if matches!(self.peek(), Token::Ident(_) | Token::Keyword(_)) {
-                            // Peek further: if the token after the ident is ; or EOF, this is END package_name
-                            let after_name = self.tokens.get(self.pos + 1);
-                            if after_name.is_none()
-                                || matches!(after_name.map(|t| &t.token), Some(Token::Semicolon) | Some(Token::Slash))
+                            let mut look = self.pos;
+                            while let Some(token) = self.tokens.get(look).map(|t| &t.token) {
+                                if !matches!(token, Token::Ident(_) | Token::Keyword(_)) {
+                                    break;
+                                }
+                                look += 1;
+                                if matches!(self.tokens.get(look).map(|t| &t.token), Some(Token::Dot)) {
+                                    look += 1;
+                                } else {
+                                    break;
+                                }
+                            }
+                            let after_name = self.tokens.get(look);
+                            if look > self.pos
+                                && (after_name.is_none()
+                                    || matches!(
+                                        after_name.map(|t| &t.token),
+                                        Some(Token::Semicolon) | Some(Token::Slash)
+                                    ))
                             {
-                                while matches!(self.peek(), Token::Ident(_) | Token::Keyword(_)) {
+                                while self.pos < look {
                                     self.advance();
                                 }
                                 break;
