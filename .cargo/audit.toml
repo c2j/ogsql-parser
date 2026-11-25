@@ -1,0 +1,28 @@
+# cargo-audit triage — advisories that cannot be fixed by a lockfile bump right
+# now. Each entry carries its justification; revisit on rmcp / utoipa-swagger-ui
+# upgrades. Tracked alongside flux-gauss issue #136 CI work (2026-11-25).
+[advisories]
+ignore = [
+    # rmcp 1.7.0 — unbounded response-body buffering in Streamable HTTP
+    # CLIENTS. ogsql-parser exercises rmcp server-side only; the vulnerable
+    # client path is not used. Fix requires rmcp 1.5 -> 3.9 (major API
+    # migration) — dedicated upgrade, not a lockfile bump.
+    "RUSTSEC-2026-0462",
+    # url 2.5.8 — stack overflow in Url::origin() on nested `blob:` URLs.
+    # The parser never constructs or parses blob: URLs; url is pinned at
+    # 2.5.8 by the rmcp/axum dependency tree (update resolves 0 packages).
+    "RUSTSEC-2026-0592",
+    # zip 2.4.2 (six advisories) — extraction/symlink/AES issues in the zip
+    # crate itself. zip arrives via utoipa-swagger-ui "=9.0.0", which uses it
+    # at BUILD time to pack swagger-ui assets into the binary — not a runtime
+    # attack surface. The 9.0.0 pin is documented in Cargo.toml: 9.0.1's zip
+    # ^2.6 has only yanked releases and 9.0.2's zip ^3 uses `dep:`-syntax
+    # features unresolvable by the MSRV toolchain. zip >= 9.0.5 needs
+    # utoipa-swagger-ui >= 9.0.5 — revisit on its next release.
+    "RUSTSEC-2026-0548",
+    "RUSTSEC-2026-0429",
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+    "RUSTSEC-2026-0545",
+]
