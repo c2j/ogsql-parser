@@ -54,13 +54,13 @@ jobs:
             resource: ogsql_linux_arm64
             suffix: ""
           - name: osx-amd64
-            os: macos-14
+            os: macos-15
             target: x86_64-apple-darwin
             zigbuild: "false"
             resource: ogsql_osx_amd64
             suffix: ""
           - name: osx-arm64
-            os: macos-14
+            os: macos-15
             target: aarch64-apple-darwin
             zigbuild: "false"
             resource: ogsql_osx_arm64

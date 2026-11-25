@@ -553,8 +553,8 @@ impl Parser {
 
     fn is_separator_line(&self) -> bool {
         let mut count = 0;
-        for i in self.pos..self.tokens.len() {
-            match &self.tokens[i].token {
+        for tok in &self.tokens[self.pos..] {
+            match &tok.token {
                 Token::Eq => count += 1,
                 _ => break,
             }
@@ -572,18 +572,14 @@ impl Parser {
     }
 
     fn find_next_semicolon_from(&self, start: usize) -> Option<usize> {
-        for i in start..self.tokens.len() {
-            if matches!(self.tokens[i].token, Token::Semicolon) {
-                return Some(i);
-            }
-        }
-        None
+        self.tokens[start..].iter().position(|t| matches!(t.token, Token::Semicolon)).map(|offset| start + offset)
     }
 
     fn has_begin_after_declare(&self, declare_pos: usize) -> bool {
         let mut depth = 0i32;
-        for i in (declare_pos + 1)..self.tokens.len().min(declare_pos + 500) {
-            match &self.tokens[i].token {
+        let end = self.tokens.len().min(declare_pos + 500);
+        for tok in &self.tokens[(declare_pos + 1)..end] {
+            match &tok.token {
                 Token::LParen => depth += 1,
                 Token::RParen => depth = (depth - 1).max(0),
                 Token::Keyword(Keyword::BEGIN_P) if depth == 0 => return true,
@@ -734,11 +730,11 @@ impl Parser {
     }
 
     fn find_slash_after(&self, semicolon_pos: usize) -> Option<usize> {
-        for j in (semicolon_pos + 1)..self.tokens.len() {
-            match &self.tokens[j].token {
-                Token::Slash => return Some(j),
+        for (offset, tok) in self.tokens[(semicolon_pos + 1)..].iter().enumerate() {
+            match &tok.token {
+                Token::Slash => return Some(semicolon_pos + 1 + offset),
                 Token::Keyword(Keyword::END_P) | Token::Semicolon => return None,
-                _ if !matches!(self.tokens[j].token, Token::Keyword(Keyword::END_P) | Token::Ident(_)) => return None,
+                _ if !matches!(tok.token, Token::Keyword(Keyword::END_P) | Token::Ident(_)) => return None,
                 _ => {}
             }
         }
